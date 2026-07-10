@@ -175,6 +175,7 @@ export function drawImageWithState(
     upscale2x: boolean;
     width: number;
     height: number;
+    cornerRadius: number;
   },
   // If true, renders at the full requested resolution. If false, fits in the layout
   isExporting: boolean = false
@@ -349,4 +350,25 @@ export function drawImageWithState(
     ctx.fillText(text.text, tx, ty);
     ctx.restore();
   });
+
+  // 10. Corner rounding mask (globalCompositeOperation 'destination-in' trims everything outside)
+  if (state.cornerRadius && state.cornerRadius > 0) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.fillStyle = '#000000';
+    
+    const minDim = Math.min(renderWidth, renderHeight);
+    const r = (state.cornerRadius / 100) * minDim;
+    
+    ctx.beginPath();
+    ctx.moveTo(r, 0);
+    ctx.arcTo(renderWidth, 0, renderWidth, renderHeight, r);
+    ctx.arcTo(renderWidth, renderHeight, 0, renderHeight, r);
+    ctx.arcTo(0, renderHeight, 0, 0, r);
+    ctx.arcTo(0, 0, renderWidth, 0, r);
+    ctx.closePath();
+    ctx.fill();
+    
+    ctx.restore();
+  }
 }

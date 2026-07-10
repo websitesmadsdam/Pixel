@@ -34,6 +34,7 @@ const INITIAL_IMAGE_STATE: ImageState = {
   watermarks: [],
   backgroundRemoved: false,
   upscale2x: false,
+  cornerRadius: 0,
 };
 
 export default function App() {
@@ -163,8 +164,9 @@ export default function App() {
     const watermarksChanged = JSON.stringify(imageState.watermarks) !== JSON.stringify(lastHistoryItem.watermarks);
     const bgChanged = imageState.backgroundRemoved !== lastHistoryItem.backgroundRemoved;
     const upscaleChanged = imageState.upscale2x !== lastHistoryItem.upscale2x;
+    const cornerRadiusChanged = imageState.cornerRadius !== lastHistoryItem.cornerRadius;
 
-    if (adjustmentsChanged || filterChanged || textsChanged || watermarksChanged || bgChanged || upscaleChanged) {
+    if (adjustmentsChanged || filterChanged || textsChanged || watermarksChanged || bgChanged || upscaleChanged || cornerRadiusChanged) {
       // Set up a debounce timer to commit the adjustments after 550ms
       const timer = setTimeout(() => {
         pushNewState(imageState);
@@ -178,6 +180,7 @@ export default function App() {
     imageState.watermarks, 
     imageState.backgroundRemoved, 
     imageState.upscale2x, 
+    imageState.cornerRadius,
     history, 
     historyIndex, 
     pushNewState
@@ -237,6 +240,7 @@ export default function App() {
         watermarks: [],
         backgroundRemoved: false,
         upscale2x: false,
+        cornerRadius: 0,
       };
 
       setOriginalImage(img);
@@ -338,6 +342,7 @@ export default function App() {
             watermarks: [],
             backgroundRemoved: false,
             upscale2x: false,
+            cornerRadius: 0,
           };
           setOriginalImage(img);
           setImageState(baseState);

@@ -417,6 +417,32 @@ export default function Sidebar({
               </div>
             </div>
 
+            {/* Runde hjørner */}
+            <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-[#2A2A2E]">
+              <div className="flex justify-between items-center text-xs font-semibold text-slate-500 dark:text-gray-400">
+                <span className="uppercase tracking-wider">Runde hjørner</span>
+                <span id="corners-val-label" className="font-mono font-bold text-indigo-600 dark:text-blue-400">
+                  {imageState.cornerRadius || 0}%
+                </span>
+              </div>
+              <input
+                id="slider-corners"
+                type="range"
+                min="0"
+                max="50"
+                step="1"
+                value={imageState.cornerRadius || 0}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value) || 0;
+                  setImageState(prev => ({ ...prev, cornerRadius: val }));
+                }}
+                className="w-full h-1.5 bg-slate-100 dark:bg-[#2A2A2E] rounded-lg appearance-none cursor-pointer accent-blue-600 animate-pulse-once"
+              />
+              <p className="text-xxs text-slate-400 dark:text-gray-400 leading-relaxed">
+                Gør billedets hjørner bløde og afrundede. Ved 50% bliver et kvadratisk billede helt cirkulært.
+              </p>
+            </div>
+
             {/* Crop Actions */}
             <div className="space-y-2 pt-3 border-t border-slate-100 dark:border-[#2A2A2E] flex flex-col gap-2">
               <button

@@ -52,6 +52,7 @@ export interface ImageState {
   watermarks: Watermark[];
   backgroundRemoved: boolean;
   upscale2x: boolean;
+  cornerRadius: number; // percentage 0 - 50
 }
 
 export interface ExifData {
