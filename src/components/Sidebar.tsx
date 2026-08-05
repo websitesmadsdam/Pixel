@@ -42,6 +42,8 @@ interface SidebarProps {
   isBgRemoving: boolean;
   bgRemovalProgress: string;
   isDarkMode: boolean;
+  selectedTextId?: string | null;
+  setSelectedTextId?: (id: string | null) => void;
 }
 
 export default function Sidebar({
@@ -58,6 +60,8 @@ export default function Sidebar({
   isBgRemoving,
   bgRemovalProgress,
   isDarkMode,
+  selectedTextId: propSelectedTextId,
+  setSelectedTextId: propSetSelectedTextId,
 }: SidebarProps) {
   
   // Tab list
@@ -175,7 +179,10 @@ export default function Sidebar({
 
   // TEXT STATES
   const [newText, setNewText] = useState<string>('');
-  const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
+  const [localSelectedTextId, setLocalSelectedTextId] = useState<string | null>(null);
+
+  const selectedTextId = propSelectedTextId !== undefined ? propSelectedTextId : localSelectedTextId;
+  const setSelectedTextId = propSetSelectedTextId !== undefined ? propSetSelectedTextId : setLocalSelectedTextId;
 
   const handleAddText = () => {
     if (!newText.trim()) return;
@@ -1000,7 +1007,7 @@ export default function Sidebar({
           <div id="tab-panel-background" className="space-y-5">
             <h3 className="text-sm font-bold text-slate-800 dark:text-white">Fjern baggrund</h3>
             <p className="text-xxs text-slate-400 dark:text-gray-400 leading-relaxed">
-              Fritlæg automatisk motivet direkte i browseren. Pixel bruger en kantsensitiv farvesegmentering og baggrundsmaske — 100% lokalt og privat.
+              Fritlæg automatisk motivet direkte i browseren. myPhoto bruger en kantsensitiv farvesegmentering og baggrundsmaske — 100% lokalt og privat.
             </p>
 
             {isBgRemoving ? (
@@ -1142,7 +1149,7 @@ export default function Sidebar({
                 </div>
 
                 <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20 rounded-lg text-xxs leading-relaxed">
-                  🔒 <strong>GDPR-Sikkerhed:</strong> Pixel sletter alle disse personlige oplysninger automatisk ved eksport, så du roligt kan dele dit billede på nettet bagefter.
+                  🔒 <strong>GDPR-Sikkerhed:</strong> myPhoto sletter alle disse personlige oplysninger automatisk ved eksport, så du roligt kan dele dit billede på nettet bagefter.
                 </div>
               </div>
             ) : (

@@ -72,6 +72,114 @@ export default function App() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [viewportDims, setViewportDims] = useState({ width: 0, height: 0 });
 
+  // Selected text ID state shared with Sidebar
+  const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
+
+  // Dragging handlers for text layers
+  const startDragText = (e: React.MouseEvent | React.TouchEvent, textId: string) => {
+    e.preventDefault();
+    setSelectedTextId(textId);
+    
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    
+    const targetText = imageState.texts.find(t => t.id === textId);
+    if (!targetText) return;
+    
+    const initialPctX = targetText.x;
+    const initialPctY = targetText.y;
+    
+    const frame = document.getElementById('viewport-canvas-frame');
+    if (!frame) return;
+    
+    const rect = frame.getBoundingClientRect();
+    const frameWidth = rect.width;
+    const frameHeight = rect.height;
+    
+    const handleDragMove = (moveEvent: MouseEvent | TouchEvent) => {
+      const currentX = 'touches' in moveEvent ? moveEvent.touches[0].clientX : moveEvent.clientX;
+      const currentY = 'touches' in moveEvent ? moveEvent.touches[0].clientY : moveEvent.clientY;
+      
+      const dx = currentX - clientX;
+      const dy = currentY - clientY;
+      
+      const deltaPctX = (dx / frameWidth) * 100;
+      const deltaPctY = (dy / frameHeight) * 100;
+      
+      const nextX = Math.max(0, Math.min(100, Math.round(initialPctX + deltaPctX)));
+      const nextY = Math.max(0, Math.min(100, Math.round(initialPctY + deltaPctY)));
+      
+      setImageState(prev => ({
+        ...prev,
+        texts: prev.texts.map(t => t.id === textId ? { ...t, x: nextX, y: nextY } : t)
+      }));
+    };
+    
+    const handleDragEnd = () => {
+      window.removeEventListener('mousemove', handleDragMove);
+      window.removeEventListener('mouseup', handleDragEnd);
+      window.removeEventListener('touchmove', handleDragMove);
+      window.removeEventListener('touchend', handleDragEnd);
+    };
+    
+    window.addEventListener('mousemove', handleDragMove);
+    window.addEventListener('mouseup', handleDragEnd);
+    window.addEventListener('touchmove', handleDragMove);
+    window.addEventListener('touchend', handleDragEnd);
+  };
+
+  // Dragging handlers for watermark layers
+  const startDragWatermark = (e: React.MouseEvent | React.TouchEvent, wmId: string) => {
+    e.preventDefault();
+    
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    
+    const targetWm = imageState.watermarks.find(wm => wm.id === wmId);
+    if (!targetWm) return;
+    
+    const initialPctX = targetWm.x;
+    const initialPctY = targetWm.y;
+    
+    const frame = document.getElementById('viewport-canvas-frame');
+    if (!frame) return;
+    
+    const rect = frame.getBoundingClientRect();
+    const frameWidth = rect.width;
+    const frameHeight = rect.height;
+    
+    const handleDragMove = (moveEvent: MouseEvent | TouchEvent) => {
+      const currentX = 'touches' in moveEvent ? moveEvent.touches[0].clientX : moveEvent.clientX;
+      const currentY = 'touches' in moveEvent ? moveEvent.touches[0].clientY : moveEvent.clientY;
+      
+      const dx = currentX - clientX;
+      const dy = currentY - clientY;
+      
+      const deltaPctX = (dx / frameWidth) * 100;
+      const deltaPctY = (dy / frameHeight) * 100;
+      
+      const nextX = Math.max(0, Math.min(100, Math.round(initialPctX + deltaPctX)));
+      const nextY = Math.max(0, Math.min(100, Math.round(initialPctY + deltaPctY)));
+      
+      setImageState(prev => ({
+        ...prev,
+        watermarks: prev.watermarks.map(wm => wm.id === wmId ? { ...wm, x: nextX, y: nextY } : wm)
+      }));
+    };
+    
+    const handleDragEnd = () => {
+      window.removeEventListener('mousemove', handleDragMove);
+      window.removeEventListener('mouseup', handleDragEnd);
+      window.removeEventListener('touchmove', handleDragMove);
+      window.removeEventListener('touchend', handleDragEnd);
+    };
+    
+    window.addEventListener('mousemove', handleDragMove);
+    window.addEventListener('mouseup', handleDragEnd);
+    window.addEventListener('touchmove', handleDragMove);
+    window.addEventListener('touchend', handleDragEnd);
+  };
+
   // Update document body style for dark mode
   useEffect(() => {
     if (isDarkMode) {
@@ -555,6 +663,8 @@ export default function App() {
           isBgRemoving={isBgRemoving}
           bgRemovalProgress={bgRemovalProgress}
           isDarkMode={isDarkMode}
+          selectedTextId={selectedTextId}
+          setSelectedTextId={setSelectedTextId}
         />
 
         {/* Viewport Canvas Workspace */}
@@ -593,6 +703,81 @@ export default function App() {
                 onChange={setActiveCrop}
                 aspectRatio={cropAspectRatio}
               />
+            )}
+
+            {/* Draggable Text and Watermark Handles overlay */}
+            {activeTab === 'text' && (
+              <div className="absolute inset-0 pointer-events-none select-none z-10">
+                {/* Drag text overlays */}
+                {imageState.texts.map((t) => {
+                  const isSelected = selectedTextId === t.id;
+                  return (
+                    <div
+                      key={t.id}
+                      id={`draggable-text-container-${t.id}`}
+                      className="absolute pointer-events-auto cursor-move flex flex-col items-center justify-center select-none"
+                      style={{
+                        left: `${t.x}%`,
+                        top: `${t.y}%`,
+                        transform: 'translate(-50%, -50%)',
+                      }}
+                      onMouseDown={(e) => startDragText(e, t.id)}
+                      onTouchStart={(e) => startDragText(e, t.id)}
+                    >
+                      {/* Bounding box with dash border on hover or selection */}
+                      <div
+                        className={`px-3 py-1.5 rounded-md border text-center whitespace-nowrap text-xs font-semibold backdrop-blur-xs transition-all ${
+                          isSelected
+                            ? 'bg-blue-600/90 text-white border-blue-400 shadow-lg scale-105'
+                            : 'bg-slate-900/80 hover:bg-slate-900 border-slate-700/60 text-slate-100 hover:scale-105'
+                        }`}
+                      >
+                        <span className="max-w-[120px] truncate block">
+                          {t.text || "Tom tekst"}
+                        </span>
+                      </div>
+                      
+                      {/* Tiny center dot drag anchor indicator */}
+                      <div className={`w-2 h-2 rounded-full mt-1 border border-white ${
+                        isSelected ? 'bg-blue-400' : 'bg-slate-400'
+                      }`} />
+                    </div>
+                  );
+                })}
+
+                {/* Drag watermarks (logos) */}
+                {imageState.watermarks.map((wm) => {
+                  return (
+                    <div
+                      key={wm.id}
+                      id={`draggable-watermark-container-${wm.id}`}
+                      className="absolute pointer-events-auto cursor-move flex flex-col items-center justify-center select-none"
+                      style={{
+                        left: `${wm.x}%`,
+                        top: `${wm.y}%`,
+                        transform: 'translate(-50%, -50%)',
+                      }}
+                      onMouseDown={(e) => startDragWatermark(e, wm.id)}
+                      onTouchStart={(e) => startDragWatermark(e, wm.id)}
+                    >
+                      {/* Bounding box indicator for Logo */}
+                      <div className="p-1 rounded bg-slate-900/80 border border-slate-700/60 hover:bg-slate-900 hover:scale-105 transition-all text-center">
+                        <span className="text-xxs font-bold text-blue-400 px-1 py-0.5 block uppercase tracking-wider">
+                          Logo / Vandmærke
+                        </span>
+                        {/* Show thumbnail if possible */}
+                        <img 
+                          src={wm.imageUrl} 
+                          alt="Thumbnail" 
+                          referrerPolicy="no-referrer"
+                          className="h-8 max-w-[80px] object-contain mx-auto mt-1 rounded opacity-80"
+                        />
+                      </div>
+                      <div className="w-2 h-2 rounded-full bg-blue-500 mt-1 border border-white" />
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
 

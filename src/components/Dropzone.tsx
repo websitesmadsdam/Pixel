@@ -50,7 +50,7 @@ export default function Dropzone({
     setErrorMessage(null);
     if (!file.type.startsWith('image/')) {
       // Step 2 Verification requirement: "Upload af tekstfil -> afvist med pæn fejlbesked"
-      setErrorMessage('Den uploadede fil er ikke et gyldigt billede. Pixel understøtter kun billedfiler (JPEG, PNG, WebP, GIF, AVIF, BMP, SVG).');
+      setErrorMessage('Den uploadede fil er ikke et gyldigt billede. myPhoto understøtter kun billedfiler (JPEG, PNG, WebP, GIF, AVIF, BMP, SVG).');
       return;
     }
     onImageSelected(file);
@@ -66,7 +66,7 @@ export default function Dropzone({
             <div className="bg-indigo-500 rounded-sm"></div>
             <div className="bg-emerald-500 rounded-sm"></div>
           </div>
-          <span className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">Pixel</span>
+          <span className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">myPhoto</span>
         </div>
         <h1 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-white mb-2">
           Gratis billedværktøj, der kører 100% i din browser
@@ -142,7 +142,7 @@ export default function Dropzone({
       {/* Grid of features */}
       <div className="max-w-4xl w-full mt-16">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 text-center mb-8">
-          DET KAN DU MED PIXEL
+          DET KAN DU MED MYPHOTO
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-white dark:bg-[#16161A] p-5 rounded-xl border border-slate-150 dark:border-[#2A2A2E] shadow-xs dark:shadow-none flex flex-col items-start text-left">

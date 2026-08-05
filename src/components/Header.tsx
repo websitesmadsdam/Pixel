@@ -43,9 +43,9 @@ export default function Header({
       <div className="flex items-center gap-3 min-w-0">
         <div className="flex gap-1.5 shrink-0 items-center">
           <div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center shadow-md">
-            <span className="text-white text-[10px] font-bold font-mono">PX</span>
+            <span className="text-white text-[10px] font-bold font-mono">MP</span>
           </div>
-          <span className="font-bold tracking-tight text-sm hidden sm:inline">Pixel Studio Pro</span>
+          <span className="font-bold tracking-tight text-sm hidden sm:inline">myPhoto</span>
         </div>
         
         {/* Divider */}

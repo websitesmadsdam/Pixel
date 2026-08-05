@@ -24,7 +24,7 @@ export default function ExportModal({
   useEffect(() => {
     const dotIndex = originalName.lastIndexOf('.');
     const baseName = dotIndex !== -1 ? originalName.substring(0, dotIndex) : originalName;
-    setFileName(`${baseName}_pixel`);
+    setFileName(`${baseName}_myphoto`);
   }, [originalName]);
 
   // Dynamically calculate actual export size in bytes using canvas.toBlob
