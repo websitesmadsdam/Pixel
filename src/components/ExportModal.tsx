@@ -1,15 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Download, X, FileImage, ShieldCheck } from 'lucide-react';
+import { ImageState } from '../types';
+import { drawImageWithState, preloadWatermarks } from '../utils/filters';
 
 interface ExportModalProps {
-  canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  originalImage: HTMLImageElement;
+  imageState: ImageState;
   originalSize: number; // in bytes
   originalName: string;
   onClose: () => void;
 }
 
 export default function ExportModal({
-  canvasRef,
+  originalImage,
+  imageState,
   originalSize,
   originalName,
   onClose,
@@ -20,6 +24,27 @@ export default function ExportModal({
   const [isCalculating, setIsCalculating] = useState<boolean>(false);
   const [fileName, setFileName] = useState<string>('');
 
+  // Eksport-lærredet lever uden for DOM'en og tegnes i den fulde opløsning
+  // (isExporting = true), så bl.a. 2x opskalering rent faktisk kommer med.
+  const exportCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const exportWidth = imageState.upscale2x ? imageState.width * 2 : imageState.width;
+  const exportHeight = imageState.upscale2x ? imageState.height * 2 : imageState.height;
+
+  const mimeType =
+    format === 'jpeg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png';
+  const qualityParam = format === 'png' ? undefined : quality / 100;
+
+  /** Tegner eksport-lærredet forfra og returnerer det. */
+  const renderExportCanvas = useCallback(async (): Promise<HTMLCanvasElement> => {
+    if (!exportCanvasRef.current) {
+      exportCanvasRef.current = document.createElement('canvas');
+    }
+    await preloadWatermarks(imageState.watermarks.map((wm) => wm.imageUrl));
+    drawImageWithState(exportCanvasRef.current, originalImage, imageState, true);
+    return exportCanvasRef.current;
+  }, [originalImage, imageState]);
+
   // Set default filename without original extension
   useEffect(() => {
     const dotIndex = originalName.lastIndexOf('.');
@@ -27,38 +52,35 @@ export default function ExportModal({
     setFileName(`${baseName}_myphoto`);
   }, [originalName]);
 
-  // Dynamically calculate actual export size in bytes using canvas.toBlob
+  // Beregn den faktiske filstørrelse ud fra eksport-lærredet
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
+    let cancelled = false;
     setIsCalculating(true);
-    const mimeType = format === 'jpeg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png';
-    const qualityParam = format === 'png' ? undefined : quality / 100;
 
-    // Run in short timeout to prevent UI stutter
-    const timer = setTimeout(() => {
+    // Kort forsinkelse, så sliderbevægelser ikke får UI'et til at hakke
+    const timer = setTimeout(async () => {
+      const canvas = await renderExportCanvas();
+      if (cancelled) return;
+
       canvas.toBlob(
         (blob) => {
-          if (blob) {
-            setExportSize(blob.size);
-          }
+          if (cancelled) return;
+          if (blob) setExportSize(blob.size);
           setIsCalculating(false);
         },
         mimeType,
-        qualityParam
+        qualityParam,
       );
     }, 150);
 
-    return () => clearTimeout(timer);
-  }, [format, quality, canvasRef]);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [mimeType, qualityParam, renderExportCanvas]);
 
-  const handleDownload = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const mimeType = format === 'jpeg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png';
-    const qualityParam = format === 'png' ? undefined : quality / 100;
+  const handleDownload = async () => {
+    const canvas = await renderExportCanvas();
 
     canvas.toBlob(
       (blob) => {
@@ -74,7 +96,7 @@ export default function ExportModal({
         onClose();
       },
       mimeType,
-      qualityParam
+      qualityParam,
     );
   };
 
@@ -183,6 +205,14 @@ export default function ExportModal({
           {/* Savings Estimate Box */}
           <div className="bg-[#0A0A0B] rounded-xl border border-[#2A2A2E] p-4 space-y-3">
             <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-400 font-medium">Opløsning:</span>
+              <span id="export-dimensions-display" className="text-xs font-mono font-bold text-blue-400">
+                {exportWidth} &times; {exportHeight} px
+                {imageState.upscale2x && <span className="text-gray-500 font-medium"> (2&times;)</span>}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between pt-1 border-t border-dashed border-[#2A2A2E]">
               <span className="text-xs text-gray-400 font-medium">Original størrelse:</span>
               <span id="original-size-display" className="text-xs font-mono font-medium text-gray-300">{formatSize(originalSize)}</span>
             </div>

@@ -1,6 +1,39 @@
 import { Adjustments, FilterType, TextOverlay, Watermark, CropArea } from '../types';
 
 /**
+ * Cache af indlæste vandmærke-billeder, så drawImageWithState kan tegne dem
+ * synkront. Uden cachen ville hver gentegning starte en ny indlæsning, og
+ * vandmærket ville nå at blive sprunget over, før billedet var klar.
+ */
+const watermarkCache = new Map<string, HTMLImageElement>();
+
+function isReady(img: HTMLImageElement | undefined): img is HTMLImageElement {
+  return !!img && img.complete && img.naturalWidth > 0;
+}
+
+/**
+ * Indlæser vandmærke-billeder og lægger dem i cachen. Kald denne og afvent den,
+ * før du tegner — både i preview og ved eksport.
+ */
+export function preloadWatermarks(urls: string[]): Promise<void> {
+  return Promise.all(
+    urls.map((url) => {
+      if (isReady(watermarkCache.get(url))) return Promise.resolve();
+
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      const loaded = new Promise<void>((resolve) => {
+        img.onload = () => resolve();
+        img.onerror = () => resolve(); // en ødelagt URL må ikke blokere tegningen
+      });
+      img.src = url;
+      watermarkCache.set(url, img);
+      return loaded;
+    }),
+  ).then(() => undefined);
+}
+
+/**
  * Applies a sharpening convolution kernel to imageData.
  */
 export function sharpenImageData(imageData: ImageData, amount: number): ImageData {
@@ -115,6 +148,60 @@ export function removeBackgroundAlpha(imageData: ImageData, threshold: number = 
   }
 
   return new ImageData(result, w, h);
+}
+
+/**
+ * Oversætter et udsnit markeret på det viste (roterede/spejlvendte) billede til
+ * kildebilledets eget koordinatsystem.
+ *
+ * Beskæringsrammen tegnes oven på preview'et, mens `ImageState.crop` er procenter
+ * af kilden. Uden denne oversættelse rammer udsnittet et andet sted end markeret,
+ * så snart billedet er roteret eller spejlvendt.
+ *
+ * Begge rum er normaliserede enhedskvadrater, så lærredets bredde og højde går ud
+ * med hinanden i regnestykket og indgår ikke.
+ */
+export function displayCropToSourceCrop(
+  displayCrop: CropArea,
+  rotation: number,
+  flipHorizontal: boolean,
+  flipVertical: boolean,
+): CropArea {
+  const step = (((Math.round(rotation / 90) % 4) + 4) % 4) as 0 | 1 | 2 | 3;
+  const cos = [1, 0, -1, 0][step];
+  const sin = [0, 1, 0, -1][step];
+  const signH = flipHorizontal ? -1 : 1;
+  const signV = flipVertical ? -1 : 1;
+
+  const corners: Array<[number, number]> = [
+    [displayCrop.x, displayCrop.y],
+    [displayCrop.x + displayCrop.width, displayCrop.y],
+    [displayCrop.x, displayCrop.y + displayCrop.height],
+    [displayCrop.x + displayCrop.width, displayCrop.y + displayCrop.height],
+  ];
+
+  const us: number[] = [];
+  const vs: number[] = [];
+
+  for (const [px, py] of corners) {
+    // Centrér om (0,0) og ophæv spejlvendingen
+    const a = signH * (px / 100 - 0.5);
+    const b = signV * (py / 100 - 0.5);
+    // Ophæv rotationen
+    us.push(a * cos + b * sin + 0.5);
+    vs.push(-a * sin + b * cos + 0.5);
+  }
+
+  const clamp = (n: number) => Math.max(0, Math.min(100, n * 100));
+  const x = clamp(Math.min(...us));
+  const y = clamp(Math.min(...vs));
+
+  return {
+    x,
+    y,
+    width: clamp(Math.max(...us)) - x,
+    height: clamp(Math.max(...vs)) - y,
+  };
 }
 
 /**
@@ -311,20 +398,18 @@ export function drawImageWithState(
 
   // 8. Draw watermarks
   state.watermarks.forEach((watermark) => {
-    // watermarks have URL, opacity, width percent, x, y percentages
-    const wmImg = new Image();
-    wmImg.crossOrigin = 'anonymous';
-    wmImg.src = watermark.imageUrl;
-    if (wmImg.complete) {
-      ctx.save();
-      ctx.globalAlpha = watermark.opacity;
-      const wmWidth = (watermark.width / 100) * renderWidth;
-      const wmHeight = (wmImg.naturalHeight / wmImg.naturalWidth) * wmWidth;
-      const wmx = (watermark.x / 100) * renderWidth - wmWidth / 2;
-      const wmy = (watermark.y / 100) * renderHeight - wmHeight / 2;
-      ctx.drawImage(wmImg, wmx, wmy, wmWidth, wmHeight);
-      ctx.restore();
-    }
+    // Hentes fra cachen — kald preloadWatermarks() før tegning
+    const wmImg = watermarkCache.get(watermark.imageUrl);
+    if (!isReady(wmImg)) return;
+
+    ctx.save();
+    ctx.globalAlpha = watermark.opacity;
+    const wmWidth = (watermark.width / 100) * renderWidth;
+    const wmHeight = (wmImg.naturalHeight / wmImg.naturalWidth) * wmWidth;
+    const wmx = (watermark.x / 100) * renderWidth - wmWidth / 2;
+    const wmy = (watermark.y / 100) * renderHeight - wmHeight / 2;
+    ctx.drawImage(wmImg, wmx, wmy, wmWidth, wmHeight);
+    ctx.restore();
   });
 
   // 9. Draw text overlays

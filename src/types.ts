@@ -10,6 +10,8 @@ export interface Adjustments {
 
 export type FilterType = 'none' | 'mono' | 'sepia' | 'faded' | 'pop';
 
+export type CropAspectRatio = 'free' | '1:1' | '16:9' | '3:4';
+
 export interface TextOverlay {
   id: string;
   text: string;

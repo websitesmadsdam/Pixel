@@ -4,9 +4,13 @@ import Sidebar from './components/Sidebar';
 import Dropzone from './components/Dropzone';
 import CropOverlay from './components/CropOverlay';
 import ExportModal from './components/ExportModal';
-import { ImageState, ExifData, ToolTab, CropArea } from './types';
+import { ImageState, ExifData, ToolTab, CropArea, CropAspectRatio } from './types';
 import { parseExif } from './utils/exif';
-import { drawImageWithState } from './utils/filters';
+import {
+  drawImageWithState,
+  preloadWatermarks,
+  displayCropToSourceCrop,
+} from './utils/filters';
 import { Eye } from 'lucide-react';
 
 const INITIAL_ADJUSTMENTS = {
@@ -57,7 +61,7 @@ export default function App() {
   const [historyIndex, setHistoryIndex] = useState<number>(0);
 
   // Drag and Crop overlay values
-  const [cropAspectRatio, setCropAspectRatio] = useState<'free' | '1:1' | '16:9' | '3:4'>('free');
+  const [cropAspectRatio, setCropAspectRatio] = useState<CropAspectRatio>('free');
   const [activeCrop, setActiveCrop] = useState<CropArea>({ x: 10, y: 10, width: 80, height: 80 });
 
   // Compare original state
@@ -190,12 +194,26 @@ export default function App() {
   }, [isDarkMode]);
 
   // History mechanics
+  // Refs holder den aktuelle historik, så pushNewState kan kaldes fra en timeout
+  // eller et event uden at arbejde videre på en forældet kopi.
+  const historyRef = useRef(history);
+  const historyIndexRef = useRef(historyIndex);
+  const imageStateRef = useRef(imageState);
+
+  useEffect(() => {
+    historyRef.current = history;
+    historyIndexRef.current = historyIndex;
+    imageStateRef.current = imageState;
+  }, [history, historyIndex, imageState]);
+
   const pushNewState = useCallback((newState: ImageState) => {
-    const updatedHistory = history.slice(0, historyIndex + 1);
+    const updatedHistory = historyRef.current.slice(0, historyIndexRef.current + 1);
     updatedHistory.push(newState);
+    historyRef.current = updatedHistory;
+    historyIndexRef.current = updatedHistory.length - 1;
     setHistory(updatedHistory);
     setHistoryIndex(updatedHistory.length - 1);
-  }, [history, historyIndex]);
+  }, []);
 
   const handleUndo = useCallback(() => {
     if (historyIndex > 0) {
@@ -254,13 +272,6 @@ export default function App() {
   }, []);
 
   // Track slider modifications and push to history on debounce
-  const adjustmentsRef = useRef(imageState.adjustments);
-  const filterRef = useRef(imageState.filter);
-  const textsRef = useRef(imageState.texts);
-  const watermarksRef = useRef(imageState.watermarks);
-  const bgRemovedRef = useRef(imageState.backgroundRemoved);
-  const upscaleRef = useRef(imageState.upscale2x);
-
   useEffect(() => {
     // Check if anything major has changed compared to last item in history stack
     const lastHistoryItem = history[historyIndex];
@@ -485,6 +496,21 @@ export default function App() {
     runCanvasRender();
   }, [runCanvasRender]);
 
+  // Indlæs vandmærke-billeder og gentegn, når de er klar. Uden dette springer
+  // tegningen vandmærket over, fordi billedet endnu ikke er indlæst.
+  useEffect(() => {
+    const urls = imageState.watermarks.map((wm) => wm.imageUrl);
+    if (urls.length === 0) return;
+
+    let cancelled = false;
+    preloadWatermarks(urls).then(() => {
+      if (!cancelled) runCanvasRender();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [imageState.watermarks, runCanvasRender]);
+
   // Adjust Viewport bounds when layout container or image size changes
   const updateViewportDims = useCallback(() => {
     const container = containerRef.current;
@@ -493,11 +519,10 @@ export default function App() {
     const maxW = container.clientWidth - 32; // padding
     const maxH = container.clientHeight - 32;
 
-    const isRotated90or270 = imageState.rotation === 90 || imageState.rotation === 270;
-    
-    // Swap width/height checks if rotated
-    const targetW = isRotated90or270 ? imageState.height : imageState.width;
-    const targetH = isRotated90or270 ? imageState.width : imageState.height;
+    // imageState.width/height er allerede lærredets faktiske mål — også efter
+    // rotation, hvor handleRotate bytter dem om. Byt dem derfor IKKE igen her.
+    const targetW = imageState.width;
+    const targetH = imageState.height;
 
     let displayW = targetW;
     let displayH = targetH;
@@ -517,7 +542,7 @@ export default function App() {
       width: Math.max(100, Math.round(displayW)),
       height: Math.max(100, Math.round(displayH)),
     });
-  }, [originalImage, imageState.width, imageState.height, imageState.rotation]);
+  }, [originalImage, imageState.width, imageState.height]);
 
   useEffect(() => {
     updateViewportDims();
@@ -529,22 +554,29 @@ export default function App() {
   const handleApplyCrop = () => {
     if (!originalImage) return;
     
-    // Convert activeCrop percentage to absolute pixels on current state
+    // Lærredets nye mål måles i visningsrummet — det er dér rammen er trukket
     const cropPixelArea = {
-      x: (activeCrop.x / 100) * imageState.width,
-      y: (activeCrop.y / 100) * imageState.height,
       width: (activeCrop.width / 100) * imageState.width,
       height: (activeCrop.height / 100) * imageState.height,
     };
 
-    // Calculate crop percentages relative to original image size to support cumulative crops
+    // Rammen er trukket oven på det roterede/spejlvendte preview, mens crop
+    // gemmes som procenter af kilden. Oversæt, før udsnittene lægges sammen.
+    const sourceCrop = displayCropToSourceCrop(
+      activeCrop,
+      imageState.rotation,
+      imageState.flipHorizontal,
+      imageState.flipVertical,
+    );
+
+    // Læg oven på et eventuelt tidligere udsnit, så beskæringer kan stables
     const currentCrop = imageState.crop || { x: 0, y: 0, width: 100, height: 100 };
-    
+
     const combinedCrop: CropArea = {
-      x: currentCrop.x + (activeCrop.x / 100) * currentCrop.width,
-      y: currentCrop.y + (activeCrop.y / 100) * currentCrop.height,
-      width: (activeCrop.width / 100) * currentCrop.width,
-      height: (activeCrop.height / 100) * currentCrop.height,
+      x: currentCrop.x + (sourceCrop.x / 100) * currentCrop.width,
+      y: currentCrop.y + (sourceCrop.y / 100) * currentCrop.height,
+      width: (sourceCrop.width / 100) * currentCrop.width,
+      height: (sourceCrop.height / 100) * currentCrop.height,
     };
 
     const nextState: ImageState = {
@@ -563,43 +595,78 @@ export default function App() {
   };
 
   const handleResetCrop = () => {
+    // Ved 90/270 graders rotation er lærredets sider byttet om i forhold til originalen
+    const isRotated90or270 = imageState.rotation === 90 || imageState.rotation === 270;
     const nextState: ImageState = {
       ...imageState,
       crop: null,
-      width: imageState.originalWidth,
-      height: imageState.originalHeight,
+      width: isRotated90or270 ? imageState.originalHeight : imageState.originalWidth,
+      height: isRotated90or270 ? imageState.originalWidth : imageState.originalHeight,
     };
     setImageState(nextState);
     pushNewState(nextState);
     setActiveCrop({ x: 0, y: 0, width: 100, height: 100 });
   };
 
-  // Simulated AI Background Removal sequence (Step 9 verification requirement)
+  // Rotation: byt lærredets bredde og højde om sammen med billedet, så et 90/270
+  // graders drej ikke maser motivet ned i det gamle sideforhold.
+  const handleRotate = (direction: 'cw' | 'ccw') => {
+    const delta = direction === 'cw' ? 90 : 270;
+    const nextState: ImageState = {
+      ...imageState,
+      rotation: (imageState.rotation + delta) % 360,
+      width: imageState.height,
+      height: imageState.width,
+    };
+    setImageState(nextState);
+    pushNewState(nextState);
+  };
+
+  const handleFlip = (axis: 'horizontal' | 'vertical') => {
+    const nextState: ImageState = {
+      ...imageState,
+      flipHorizontal:
+        axis === 'horizontal' ? !imageState.flipHorizontal : imageState.flipHorizontal,
+      flipVertical:
+        axis === 'vertical' ? !imageState.flipVertical : imageState.flipVertical,
+    };
+    setImageState(nextState);
+    pushNewState(nextState);
+  };
+
+  const handleResize = (width: number, height: number) => {
+    const nextState: ImageState = { ...imageState, width, height };
+    setImageState(nextState);
+    pushNewState(nextState);
+  };
+
+  // Baggrundsfjernelse. Selve arbejdet gøres af removeBackgroundAlpha() i
+  // filters.ts ved næste gentegning — en farvebaseret maske ud fra hjørnerne,
+  // ikke en segmenteringsmodel. Teksterne herunder skal beskrive netop det.
   const handleTriggerBackgroundRemoval = () => {
     setIsBgRemoving(true);
-    setBgRemovalProgress('Forbereder fritlægning lokalt...');
+    setBgRemovalProgress('Aflæser baggrundsfarven i billedets hjørner...');
 
     setTimeout(() => {
-      setBgRemovalProgress('Henter segmenteringsmodel fra CDN (1.2 MB)...');
-      
+      setBgRemovalProgress('Sammenligner hver pixel med baggrundsfarven...');
+
       setTimeout(() => {
-        setBgRemovalProgress('Analyserer motivkonturer og silhuetter...');
-        
+        setBgRemovalProgress('Danner gennemsigtige pixels med bløde kanter...');
+
         setTimeout(() => {
-          setBgRemovalProgress('Færdiggør fritlægning og danner transparente pixels...');
-          
-          setTimeout(() => {
-            setIsBgRemoving(false);
-            setBgRemovalProgress('');
-            
-            setImageState((prev) => {
-              const updated = { ...prev, backgroundRemoved: true };
-              pushNewState(updated);
-              return updated;
-            });
-          }, 600);
-        }, 800);
-      }, 1200);
+          setIsBgRemoving(false);
+          setBgRemovalProgress('');
+
+          // Ingen bivirkninger inde i en state-updater: React StrictMode kører
+          // updaters to gange i udvikling og ville lave en dobbelt historikpost.
+          const nextState: ImageState = {
+            ...imageStateRef.current,
+            backgroundRemoved: true,
+          };
+          setImageState(nextState);
+          pushNewState(nextState);
+        }, 700);
+      }, 700);
     }, 600);
   };
 
@@ -656,13 +723,15 @@ export default function App() {
           setImageState={setImageState}
           onApplyCrop={handleApplyCrop}
           onResetCrop={handleResetCrop}
+          onRotate={handleRotate}
+          onFlip={handleFlip}
+          onResize={handleResize}
           cropAspectRatio={cropAspectRatio}
           setCropAspectRatio={setCropAspectRatio}
           exifData={exifData}
           onTriggerBackgroundRemoval={handleTriggerBackgroundRemoval}
           isBgRemoving={isBgRemoving}
           bgRemovalProgress={bgRemovalProgress}
-          isDarkMode={isDarkMode}
           selectedTextId={selectedTextId}
           setSelectedTextId={setSelectedTextId}
         />
@@ -823,7 +892,8 @@ export default function App() {
       {/* Dynamic Export Modal (Quality/Compression Estimations) */}
       {showExportModal && (
         <ExportModal
-          canvasRef={canvasRef}
+          originalImage={originalImage}
+          imageState={imageState}
           originalSize={originalSize}
           originalName={fileName}
           onClose={() => setShowExportModal(false)}
