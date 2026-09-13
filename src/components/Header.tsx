@@ -42,8 +42,12 @@ export default function Header({
       {/* Logo & Filename */}
       <div className="flex items-center gap-3 min-w-0">
         <div className="flex gap-1.5 shrink-0 items-center">
-          <div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center shadow-md">
-            <span className="text-white text-[10px] font-bold font-mono">MP</span>
+          {/* Samme farvefelter som startskærmen og app-ikonet (public/icon.svg) */}
+          <div className="grid grid-cols-2 gap-0.5 w-6 h-6" aria-hidden="true">
+            <div className="bg-amber-500 rounded-sm" />
+            <div className="bg-red-500 rounded-sm" />
+            <div className="bg-indigo-500 rounded-sm" />
+            <div className="bg-emerald-500 rounded-sm" />
           </div>
           <span className="font-bold tracking-tight text-sm hidden sm:inline">myPhoto</span>
         </div>

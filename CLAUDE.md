@@ -169,6 +169,9 @@ Bevidst fravalgt indtil videre. Tag først op efter aftale.
 Nyeste først. Detaljer står i commit-beskederne.
 
 **13-09-2026**
+- **Nyt app-ikon: farvefelter.** De fire farvefelter fra startskærmen (amber, rød,
+  indigo, smaragd på `#16161A`) erstatter "MP" i ikon, favicon og header. PNG'erne er
+  tegnet ud fra samme geometri som `public/icon.svg`.
 - **iPhone/iPad.** Eksport begrænses til 16,7 MP på iOS (`getMaxCanvasPixels`), med
   besked i eksportvinduet — før gav fx et 12 MP-foto med 2× en tom fil.
   `apple-mobile-web-app-title` giver "myPhoto" under ikonet på hjemmeskærmen.
