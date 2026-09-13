@@ -17,6 +17,9 @@ npm run preview  # server dist/ lokalt
 npm run lint     # tsc --noEmit (strict) && eslint .
 ```
 
+Service workeren findes kun i build. PWA/offline testes derfor med
+`npm run build && npm run preview` (port 4173) — ikke med `npm run dev`.
+
 Node 20+. Der er ingen `.env` og ingen hemmeligheder — opret ikke nogen.
 
 ## Stak
@@ -50,7 +53,15 @@ sliderændringer.
 ### Filer
 
 ```
+public/
+├── manifest.webmanifest # PWA-manifest (navn, farver, ikoner)
+├── icon.svg             # favicon + skalerbart app-ikon
+└── icons/               # 192/512 px, maskable 512 px, apple-touch-icon 180 px
+vite.config.ts           # indeholder serviceWorker()-pluginet, der bygger dist/sw.js
 src/
+├── main.tsx             # monterer App; registrerer service workeren (kun i build)
+├── pwa/
+│   └── sw-template.js   # service worker-skabelon, udfyldes ved build
 ├── App.tsx              # al tilstand, historik, canvas-render, træk-og-slip
 ├── types.ts             # ImageState, Adjustments, TextOverlay, ExifData m.fl.
 ├── index.css            # Google Fonts, Tailwind-tema, animationer
@@ -94,6 +105,14 @@ tilføje den til `TABS` og udpege den i panelet.
 - Ny funktionalitet, der påvirker det færdige billede, skal ind i
   `drawImageWithState()` og skal virke både i preview og ved eksport.
 - Ændringer i `ImageState` skal med i undo-historikken.
+- **PWA uden afhængigheder.** Service workeren er skrevet i hånden
+  (`src/pwa/sw-template.js`). `serviceWorker()` i `vite.config.ts` indsætter ved
+  build alle byggede filer + `public/` som precache og en indholdshash som version.
+  Nye filer i `public/` kommer automatisk med. Tilføj ikke `vite-plugin-pwa`/Workbox.
+  Strategier: sider netværk først med den cachede `index.html` som offline-fallback
+  (gemmes ikke ved netværkssvar, så den altid passer til de cachede assets), egne
+  filer cache først, Google Fonts stale-while-revalidate. Service workeren må aldrig
+  røre billeddata eller sende noget.
 - `npm run lint` skal være grøn. Slå ikke regler fra for at få den grøn — ret koden.
   Typiske løsninger på react-hooks-fund: afled værdien under render i stedet for
   `setState` i en effekt (se `isCalculating` i `ExportModal`), justér state under
@@ -158,7 +177,12 @@ Fundet ved kodegennemgang 12-09-2026, verificér i browseren før du retter.
 Alt fundet ved kodegennemgangen 12-09-2026 er rettet, og `Sidebar.tsx` er delt op.
 Herfra:
 4. Flyt rendering til `OffscreenCanvas` + worker, hvis store billeder skal føles hurtige
-5. Overvej PWA (manifest + service worker) — appen er offline-egnet i forvejen
+5. ~~Overvej PWA (manifest + service worker)~~ **Gjort 13-09-2026.** Manifest,
+   ikoner og håndskrevet service worker. Verificeret med `npm run preview`: service
+   workeren aktiveres og precacher 9 filer ved første besøg; med serveren slukket
+   indlæses appen stadig med skrifttyper, og prøvebilledet kan åbnes og tegnes.
+   **Mulig udvidelse:** `file_handlers` + `launchQueue` i manifestet, så en
+   installeret app kan åbne billeder direkte fra styresystemet ("Åbn med myPhoto").
 6. ~~Slå `"strict": true` til i `tsconfig.json`, tilføj ESLint + `eslint-plugin-react-hooks`~~
    **Gjort 13-09-2026.** `strict` gav 0 fejl. ESLint fandt 13 ting, alle rettet:
    paste-handleren i `App.tsx` blev brugt før den var deklareret (nu `useCallback`
