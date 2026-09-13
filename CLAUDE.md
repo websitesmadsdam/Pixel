@@ -104,7 +104,12 @@ tilføje den til `TABS` og udpege den i panelet.
   som inline unions rundt omkring.
 - Ny funktionalitet, der påvirker det færdige billede, skal ind i
   `drawImageWithState()` og skal virke både i preview og ved eksport.
-- Ændringer i `ImageState` skal med i undo-historikken.
+- Ændringer i `ImageState` skal med i undo-historikken — som en handler i `App.tsx`,
+  der kalder `pushNewState`, ikke direkte fra en fane.
+- **Eksport må aldrig genbruge preview-lærredet.** Preview er skaleret ned til
+  skærmen; eksporten tegner selv i fuld opløsning (`getExportScale`).
+- **Aldrig bivirkninger inde i `setState(prev => …)`.** StrictMode kører updaters to
+  gange i udvikling.
 - **PWA uden afhængigheder.** Service workeren er skrevet i hånden
   (`src/pwa/sw-template.js`). `serviceWorker()` i `vite.config.ts` indsætter ved
   build alle byggede filer + `public/` som precache og en indholdshash som version.
@@ -120,93 +125,69 @@ tilføje den til `TABS` og udpege den i panelet.
   `useEffectEvent`, når en effekt skal læse friske værdier uden at køre igen (se
   `CropOverlay`).
 
-## Kendte fejl (ikke rettet)
+## Åbne opgaver
 
-Fundet ved kodegennemgang 12-09-2026, verificér i browseren før du retter.
+Ingen igangværende udviklingsopgaver. Tilbage er kun:
 
-1. ~~**Rotation 90°/270° forvrænger billedet.**~~ **Rettet 12-09-2026.**
-   `handleRotate()` i `App.tsx` bytter nu `width`/`height` sammen med rotationen, og
-   `updateViewportDims` byttede dem om én gang til — den dobbelte ombytning er væk.
-   Verificeret i browser: 2000×1500 → 1500×2000 ved 90°, tilbage ved 180°.
-2. ~~**2× opskalering virker ikke ved eksport.**~~ **Rettet 12-09-2026.**
-   `ExportModal` får nu `originalImage` + `imageState` i stedet for `canvasRef` og
-   tegner sit eget off-screen lærred med `isExporting = true`. Både
-   størrelsesestimatet og downloadet kommer fra det lærred, og modalen viser
-   eksportopløsningen. Verificeret: 2000×1500 → 4000×3000 med 2×, 3000×4000 med
-   2× + 90° rotation. **Regel:** eksport må aldrig genbruge preview-lærredet.
-3. ~~**Rotation, spejlvending og resize ryger ikke i undo-historikken.**~~
-   **Rettet 12-09-2026.** `App.tsx` har nu `handleRotate`, `handleFlip` og
-   `handleResize`, der alle kalder `pushNewState`. `Sidebar` kalder dem via
-   props (`onRotate`, `onFlip`, `onResize`) i stedet for at skrive direkte i
-   `setImageState`. **Mønster:** enhver ændring af `ImageState`, der skal kunne
-   fortrydes, hører hjemme som en handler i `App.tsx` — ikke i `Sidebar`.
-3b. ~~**Beskæring efter rotation sidder forkert.**~~ **Rettet 12-09-2026.**
-   `displayCropToSourceCrop()` i `filters.ts` oversætter rammen fra visningsrummet
-   (roteret/spejlvendt) til kildens koordinatsystem, før `handleApplyCrop` lægger
-   udsnittene sammen. Begge rum er normaliserede enhedskvadrater, så lærredets mål
-   går ud med hinanden — transformationen er ren rotation + spejling.
-   Verificeret: venstre halvdel efter 90° rotation giver et udsnit, der er
-   pixel-identisk (afvigelse 0,00/255) med rammen.
-4. ~~**"Fjern baggrund" er ikke AI.**~~ **Teksten rettet 12-09-2026** — funktionen er
-   uændret. Fanen hedder nu "Fjern ensfarvet baggrund" og beskriver, hvad
-   `removeBackgroundAlpha()` faktisk gør: aflæser farven i de fire hjørner og gør
-   lignende pixels gennemsigtige. De opdigtede fremdriftstekster om at hente en
-   segmenteringsmodel fra et CDN er væk.
-   **Åben mulighed:** en rigtig model (MediaPipe Selfie Segmentation eller
-   `@imgly/background-removal`) kan køre lokalt. Begge henter dog modelfiler fra et
-   CDN ved første brug — det bryder ikke privatlivsløftet (ingen billeddata
-   sendes), men det bryder husreglen om ingen CDN-kald og lægger et par MB til.
-   **Beslutning 13-09-2026: vi beholder den farvebaserede funktion indtil videre.**
-   Til senere: `@imgly/background-removal` er AGPL-3.0 (ville kræve, at hele appen
-   blev AGPL) og 40–80 MB. MediaPipe (`@mediapipe/tasks-vision`, Apache-2.0) er
-   lille, men primært til personer. transformers.js er Apache-2.0, men RMBG-modellerne
-   er ikke-kommercielle. Modelfiler bør selv-hostes frem for at hentes fra et CDN.
-5. ~~**"Opskalér 2×" er ikke opskalering.**~~ **Teksten rettet 12-09-2026** —
-   funktionen er uændret. Hed "Super-opskalering" og påstod "bicubisk
-   interpolering"; hedder nu "Dobbelt opløsning (2×)" og siger, at billedet bliver
-   større, men ikke skarpere.
-6. ~~**Vandmærker tegnes ustabilt.**~~ **Rettet 12-09-2026.** `filters.ts` har nu en
-   `watermarkCache` og en `preloadWatermarks(urls)`, der skal afventes før tegning.
-   `App.tsx` kalder den, når `watermarks` ændrer sig, og gentegner; `ExportModal`
-   afventer den før hver eksport-tegning.
-7. ~~**Bivirkning i state-updater.**~~ **Rettet 12-09-2026.** `pushNewState` læser
-   nu historikken gennem refs (`historyRef` / `historyIndexRef`) og er dermed stabil
-   og altid ajour — også når den kaldes fra en timeout.
-   `handleTriggerBackgroundRemoval` bygger sin nye state fra `imageStateRef` og
-   kalder `setImageState` + `pushNewState` ved siden af hinanden i stedet for inde i
-   updateren. **Regel:** aldrig bivirkninger inde i `setState(prev => …)`.
+1. **Test "Åbn med myPhoto" i den installerede app.** Installér appen fra
+   https://myphoto.madsdam.dk i Chrome/Edge på desktop, højreklik et billede →
+   "Åbn med" → myPhoto. Billedet skal åbne i et nyt vindue. Kan ikke testes i en
+   almindelig fane, og er derfor ikke verificeret.
+2. **(Valgfri) Skarphed ser kraftigere ud i preview end i eksport.** Skarphed virker
+   pr. pixel og køres på det nedskalerede preview-lærred. Kan udlignes ved at skalere
+   `amount` med `scale` i `sharpenImageData`-kaldet — sammenlign visuelt med eksporten
+   før det rettes.
 
-## Prioriteret backlog
+## Parkeret
 
-Alt fundet ved kodegennemgangen 12-09-2026 er rettet, og `Sidebar.tsx` er delt op.
-Herfra:
-4. ~~Flyt rendering til `OffscreenCanvas` + worker, hvis store billeder skal føles hurtige~~
-   **Løst anderledes 13-09-2026.** Målt i Chrome: preview'et gentegnede hele billedet
-   i fuld opløsning ved hver ændring — 24 MP med skarphed + baggrund + filter tog
-   1703 ms pr. slidertræk (skarphed alene 522 ms). En worker ville kun flytte
-   ventetiden væk fra UI-tråden. I stedet tager `drawImageWithState` nu en `scale`:
-   preview tegnes i skærmens opløsning (`getPreviewScale`, ~113 ms i samme
-   scenarie), eksport i fuld (`getExportScale`). Tekststørrelse og sløring skalerer
-   med. `ExportModal` gentegner ikke længere ved skift af format/kvalitet.
-   **Kendt afvigelse:** skarphed virker pr. pixel, så den ser lidt kraftigere ud i
-   det nedskalerede preview end i eksporten. Worker er stadig en mulighed, hvis
-   eksport af meget store billeder skal holde UI'et flydende.
-5. ~~Overvej PWA (manifest + service worker)~~ **Gjort 13-09-2026.** Manifest,
-   ikoner og håndskrevet service worker. Verificeret med `npm run preview`: service
-   workeren aktiveres og precacher 9 filer ved første besøg; med serveren slukket
-   indlæses appen stadig med skrifttyper, og prøvebilledet kan åbnes og tegnes.
-   **Udvidet 13-09-2026:** `file_handlers` i manifestet + `launchQueue`-consumer i
-   `App.tsx`, så en installeret app kan åbne billeder fra styresystemet ("Åbn med
-   myPhoto"). Hver fil får sit eget vindue (`launch_handler: navigate-new`), så en
-   igangværende redigering ikke overskrives. Kun Chromium på desktop; kan ikke
-   testes i en almindelig fane, kun i den installerede app.
-6. ~~Slå `"strict": true` til i `tsconfig.json`, tilføj ESLint + `eslint-plugin-react-hooks`~~
-   **Gjort 13-09-2026.** `strict` gav 0 fejl. ESLint fandt 13 ting, alle rettet:
-   paste-handleren i `App.tsx` blev brugt før den var deklareret (nu `useCallback`
-   og flyttet ned), manglende afhængigheder i historik-effekten, `setState` i
-   effekter i `ExportModal` og `SizeTab`, og døde variabler i `exif.ts`.
-   Verificeret i browser: undo opdaterer størrelsesfelterne, eksport-estimatet
-   genberegnes ved formatskift, 1:1-beskæring giver en kvadratisk ramme.
+Bevidst fravalgt indtil videre. Tag først op efter aftale.
+
+- **Ægte baggrundsfjernelse** (besluttet 13-09-2026). I dag gør
+  `removeBackgroundAlpha()` pixels, der ligner farven i hjørnerne, gennemsigtige —
+  virker kun på ensfarvede baggrunde, og fanen siger det. Muligheder til senere:
+  - `@imgly/background-removal`: bedst til alle motiver, men **AGPL-3.0** (hele appen
+    skulle være AGPL) og 40–80 MB modelfiler.
+  - MediaPipe (`@mediapipe/tasks-vision`, Apache-2.0): lille, men primært til personer.
+  - transformers.js (Apache-2.0) + RMBG: RMBG-modellerne er ikke-kommercielle.
+
+  Alle kan køre lokalt uden at sende billeddata. Modelfiler skal selv-hostes, ikke
+  hentes fra et CDN (husregel).
+- **Worker/`OffscreenCanvas` til eksport.** Preview er hurtigt nu (se historik), men
+  eksport tegner stadig i fuld opløsning på UI-tråden: ~0,7 s for 24 MP med effekter,
+  plus ~0,4 s PNG-kodning. Først relevant, hvis det mærkes i praksis.
+
+## Løst (historik)
+
+Nyeste først. Detaljer står i commit-beskederne.
+
+**13-09-2026**
+- **Hosting på Vercel** (`b6ef364`, `e30f063`). Se afsnittet Hosting. AI Studio-appen og
+  Simplys viderestilling er slettet.
+- **Hurtigt preview for store billeder** (`80e02f1`). Målt: preview gentegnede i fuld
+  opløsning ved hver ændring — 24 MP med skarphed + baggrund + filter tog 1703 ms pr.
+  slidertræk. En worker ville kun flytte ventetiden, så i stedet tager
+  `drawImageWithState` en `scale` (`getPreviewScale` / `getExportScale`) → ~113 ms.
+  `ExportModal` gentegner ikke ved skift af format/kvalitet.
+- **"Åbn med myPhoto"** (`80e02f1`). `file_handlers` + `launch_handler: navigate-new` i
+  manifestet, `launchQueue`-consumer i `App.tsx`.
+- **Rester fra AI Studio fjernet** (`80e02f1`, `466367c`): `.env.example`,
+  `metadata.json`, `assets/.aistudio/`, `--host=0.0.0.0` i dev-scriptet.
+- **PWA** (`af386a0`). Manifest, ikoner, håndskrevet service worker. Verificeret med
+  `npm run preview`: precacher 9 filer ved første besøg og virker med serveren slukket.
+- **TypeScript strict + ESLint** (`14d1282`). `strict` gav 0 fejl; ESLint fandt 13, alle
+  rettet — bl.a. paste-handler brugt før deklaration og `setState` i effekter.
+
+**12-09-2026** — kodegennemgang (`3726781`)
+- Rotation 90°/270° forvrængede billedet (bredde/højde blev byttet to gange).
+- 2× opskalering kom ikke med i eksporten (eksporten genbrugte preview-lærredet).
+- Rotation, spejlvending og resize manglede i undo-historikken.
+- Beskæring efter rotation sad forkert → `displayCropToSourceCrop()` oversætter rammen
+  til kildens koordinater. Verificeret pixel-identisk.
+- Vandmærker blev tegnet ustabilt → `watermarkCache` + `preloadWatermarks()`.
+- Bivirkning i state-updater → `pushNewState` læser historikken via refs.
+- Misvisende tekster: "AI"-baggrundsfjernelse hedder nu "Fjern ensfarvet baggrund",
+  "Super-opskalering" hedder "Dobbelt opløsning (2×)".
+- `Sidebar.tsx` delt op i én fil pr. fane under `components/tabs/`.
 
 ## Hosting
 

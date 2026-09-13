@@ -29,7 +29,7 @@ export default function ExportModal({
   });
 
   // Eksport-lærredet lever uden for DOM'en og tegnes i den fulde opløsning
-  // (isExporting = true), så bl.a. 2x opskalering rent faktisk kommer med.
+  // (getExportScale), så bl.a. 2x opskalering rent faktisk kommer med.
   const exportCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const exportWidth = imageState.upscale2x ? imageState.width * 2 : imageState.width;
