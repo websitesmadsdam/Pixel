@@ -245,9 +245,34 @@ export function getFilterString(adjustments: Adjustments, filter: FilterType, sc
   return parts.join(' ') || 'none';
 }
 
-/** Eksportens skala: fuld opløsning, dobbelt ved "Dobbelt opløsning (2×)". */
-export function getExportScale(state: { upscale2x: boolean }): number {
-  return state.upscale2x ? 2 : 1;
+/**
+ * Største lærred i pixels, som Safari på iPhone/iPad kan tegne (4096 × 4096). Over
+ * grænsen giver WebKit et tomt lærred uden fejl — og alle browsere på iOS bruger
+ * WebKit. Andre platforme har grænser langt over, hvad appen realistisk bruger.
+ */
+export const IOS_MAX_CANVAS_PIXELS = 16_777_216;
+
+export function getMaxCanvasPixels(): number {
+  const ua = navigator.userAgent;
+  // iPadOS udgiver sig for at være en Mac, men har touch
+  const isIOS =
+    /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  return isIOS ? IOS_MAX_CANVAS_PIXELS : Infinity;
+}
+
+/**
+ * Eksportens skala: fuld opløsning, dobbelt ved "Dobbelt opløsning (2×)" — men
+ * aldrig større, end enheden kan tegne. Et 48 MP-foto eller et 12 MP-foto med 2×
+ * ville ellers give en tom fil på iPhone.
+ */
+export function getExportScale(
+  state: { upscale2x: boolean; width: number; height: number },
+  maxPixels: number = getMaxCanvasPixels(),
+): number {
+  const wanted = state.upscale2x ? 2 : 1;
+  // 0,1 % margin, så afrunding af bredde og højde ikke skubber over grænsen
+  const fit = Math.sqrt(maxPixels / (state.width * state.height)) * 0.999;
+  return Math.min(wanted, fit);
 }
 
 /**

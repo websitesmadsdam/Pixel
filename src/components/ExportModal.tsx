@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Download, X, FileImage, ShieldCheck } from 'lucide-react';
+import { Download, X, FileImage, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { ImageState } from '../types';
-import { drawImageWithState, getExportScale, preloadWatermarks } from '../utils/filters';
+import {
+  drawImageWithState,
+  getExportScale,
+  getMaxCanvasPixels,
+  preloadWatermarks,
+} from '../utils/filters';
 
 interface ExportModalProps {
   originalImage: HTMLImageElement;
@@ -32,8 +37,15 @@ export default function ExportModal({
   // (getExportScale), så bl.a. 2x opskalering rent faktisk kommer med.
   const exportCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const exportWidth = imageState.upscale2x ? imageState.width * 2 : imageState.width;
-  const exportHeight = imageState.upscale2x ? imageState.height * 2 : imageState.height;
+  // Den ønskede opløsning kan være større, end enheden kan tegne (Safari på
+  // iPhone/iPad), så eksporten viser og bruger den faktiske skala.
+  const wantedScale = imageState.upscale2x ? 2 : 1;
+  const exportScale = getExportScale(imageState);
+  const isSizeLimited = exportScale < wantedScale;
+  const exportWidth = Math.max(1, Math.round(imageState.width * exportScale));
+  const exportHeight = Math.max(1, Math.round(imageState.height * exportScale));
+  // Rundet ned, så beskeden aldrig lover mere, end enheden kan (16.777.216 px → 16,7)
+  const maxMegapixels = (Math.floor(getMaxCanvasPixels() / 1e5) / 10).toFixed(1).replace('.', ',');
 
   const mimeType =
     format === 'jpeg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png';
@@ -236,9 +248,23 @@ export default function ExportModal({
               <span className="text-xs text-gray-400 font-medium">Opløsning:</span>
               <span id="export-dimensions-display" className="text-xs font-mono font-bold text-blue-400">
                 {exportWidth} &times; {exportHeight} px
-                {imageState.upscale2x && <span className="text-gray-500 font-medium"> (2&times;)</span>}
+                {exportScale === 2 && <span className="text-gray-500 font-medium"> (2&times;)</span>}
               </span>
             </div>
+
+            {isSizeLimited && (
+              <div
+                id="export-size-limit-notice"
+                className="flex items-start gap-2 pt-2 border-t border-dashed border-[#2A2A2E] text-xxs text-amber-400 leading-relaxed"
+              >
+                <AlertTriangle size={14} className="shrink-0 mt-px" />
+                <span>
+                  Denne enhed kan højst gemme billeder på ca. {maxMegapixels} MP. Billedet
+                  gemmes derfor i {exportWidth} &times; {exportHeight} px i stedet for{' '}
+                  {imageState.width * wantedScale} &times; {imageState.height * wantedScale} px.
+                </span>
+              </div>
+            )}
 
             <div className="flex items-center justify-between pt-1 border-t border-dashed border-[#2A2A2E]">
               <span className="text-xs text-gray-400 font-medium">Original størrelse:</span>

@@ -108,6 +108,10 @@ tilføje den til `TABS` og udpege den i panelet.
   der kalder `pushNewState`, ikke direkte fra en fane.
 - **Eksport må aldrig genbruge preview-lærredet.** Preview er skaleret ned til
   skærmen; eksporten tegner selv i fuld opløsning (`getExportScale`).
+- **Lærreder må ikke overstige `getMaxCanvasPixels()`.** Safari på iPhone/iPad (og
+  dermed alle browsere på iOS) giver et tomt lærred uden fejl over 16,7 MP.
+  `getExportScale` skalerer ned og `ExportModal` viser en besked. Nye lærreder i
+  fuld opløsning skal gennem samme grænse.
 - **Aldrig bivirkninger inde i `setState(prev => …)`.** StrictMode kører updaters to
   gange i udvikling.
 - **PWA uden afhængigheder.** Service workeren er skrevet i hånden
@@ -133,7 +137,11 @@ Ingen igangværende udviklingsopgaver. Tilbage er kun:
    https://myphoto.madsdam.dk i Chrome/Edge på desktop, højreklik et billede →
    "Åbn med" → myPhoto. Billedet skal åbne i et nyt vindue. Kan ikke testes i en
    almindelig fane, og er derfor ikke verificeret.
-2. **(Valgfri) Skarphed ser kraftigere ud i preview end i eksport.** Skarphed virker
+2. **Test på en rigtig iPhone.** Safari → Del → "Føj til hjemmeskærm". Tjek at navnet
+   under ikonet er "myPhoto", at appen åbner i eget vindue, og at eksport af et foto
+   med "Dobbelt opløsning (2×)" giver en rigtig fil og beskeden om 16,7 MP. Grænsen er
+   kun afprøvet ved at efterligne en iPhone i Chrome.
+3. **(Valgfri) Skarphed ser kraftigere ud i preview end i eksport.** Skarphed virker
    pr. pixel og køres på det nedskalerede preview-lærred. Kan udlignes ved at skalere
    `amount` med `scale` i `sharpenImageData`-kaldet — sammenlign visuelt med eksporten
    før det rettes.
@@ -161,6 +169,9 @@ Bevidst fravalgt indtil videre. Tag først op efter aftale.
 Nyeste først. Detaljer står i commit-beskederne.
 
 **13-09-2026**
+- **iPhone/iPad.** Eksport begrænses til 16,7 MP på iOS (`getMaxCanvasPixels`), med
+  besked i eksportvinduet — før gav fx et 12 MP-foto med 2× en tom fil.
+  `apple-mobile-web-app-title` giver "myPhoto" under ikonet på hjemmeskærmen.
 - **Hosting på Vercel** (`b6ef364`, `e30f063`). Se afsnittet Hosting. AI Studio-appen og
   Simplys viderestilling er slettet.
 - **Hurtigt preview for store billeder** (`80e02f1`). Målt: preview gentegnede i fuld
