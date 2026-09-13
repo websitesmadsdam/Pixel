@@ -208,6 +208,19 @@ Herfra:
    Verificeret i browser: undo opdaterer størrelsesfelterne, eksport-estimatet
    genberegnes ved formatskift, 1:1-beskæring giver en kvadratisk ramme.
 
+## Hosting
+
+Vercel, projekt `myphoto` i teamet "websitesmadsdam's projects" (Hobby), forbundet
+til `websitesmadsdam/Pixel`. Hvert push til `main` udruller til produktion.
+
+- Produktion: https://myphoto.madsdam.dk (Vercel-adresse: https://myphoto-psi.vercel.app)
+- DNS for madsdam.dk ligger hos Simply.com: `myphoto` er en CNAME til
+  `0f761ff84ce3d458.vercel-dns-017.com` (sat 13-09-2026, afløste en Simply-viderestilling
+  til myphoto.ai.studio)
+- Vite-preset, ingen `vercel.json`, ingen miljøvariabler. Vercel sender
+  `Cache-Control: public, max-age=0, must-revalidate` på `sw.js`, så nye versioner af
+  service workeren slår igennem.
+
 ## Google AI Studio
 
 Rester fra AI Studio (`.env.example` med en ubrugt `GEMINI_API_KEY`, `metadata.json`
