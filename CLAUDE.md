@@ -5,7 +5,8 @@ brugerens browser — **ingen upload, ingen backend, ingen API-kald**. Det er ap
 kerneløfte og står eksplicit i footeren ("Behandles lokalt, intet uploades").
 
 Oprindeligt bygget i Google AI Studio, nu videreudviklet i Claude Code.
-Repo: `websitesmadsdam/Pixel`.
+Repo: `websitesmadsdam/Pixel` · Produktion: https://myphoto.madsdam.dk (Vercel, se
+Hosting). Installérbar PWA, virker offline.
 
 ## Kommandoer
 
@@ -37,8 +38,11 @@ Hele redigeringen er ét deklarativt objekt, `ImageState` (`src/types.ts`), der 
 `App.tsx`. Originalbilledet holdes uændret i hukommelsen som `HTMLImageElement` og
 røres aldrig.
 
-`drawImageWithState()` i `src/utils/filters.ts` er kernen: den gentegner hele
-billedet fra bunden ved hver ændring, i ti faste trin:
+`drawImageWithState(canvas, image, state, scale)` i `src/utils/filters.ts` er
+kernen: den gentegner hele billedet fra bunden ved hver ændring. `scale` er
+lærredets pixels pr. billedpixel — preview bruger `getPreviewScale()` (skærmens
+opløsning), eksport `getExportScale()` (fuld, 2× ved opskalering, loftet af
+`getMaxCanvasPixels()` på iOS). Tekst og sløring skalerer med. Ti faste trin:
 
 1. canvasstørrelse → 2. transform (rotation/flip) → 3. CSS-filtre → 4. tegn (evt.
 beskåret) → 5. pixelniveau (skarphed, baggrundsfjernelse) → 6. varme-overlay →
@@ -59,8 +63,10 @@ public/
 ├── favicon.ico          # 16/32/48 px fallback til browsere og tjenester uden SVG-favicon
 └── icons/               # 192/512 px, maskable 512 px, apple-touch-icon 180 px
 vite.config.ts           # indeholder serviceWorker()-pluginet, der bygger dist/sw.js
+eslint.config.js         # flad ESLint-config (typescript-eslint + react-hooks)
 src/
 ├── main.tsx             # monterer App; registrerer service workeren (kun i build)
+├── vite-env.d.ts        # Vite-typer + typer for launchQueue (File Handling API)
 ├── pwa/
 │   └── sw-template.js   # service worker-skabelon, udfyldes ved build
 ├── App.tsx              # al tilstand, historik, canvas-render, træk-og-slip
@@ -165,15 +171,51 @@ Bevidst fravalgt indtil videre. Tag først op efter aftale.
   eksport tegner stadig i fuld opløsning på UI-tråden: ~0,7 s for 24 MP med effekter,
   plus ~0,4 s PNG-kodning. Først relevant, hvis det mærkes i praksis.
 
+## Idéer og optimeringer (ikke startet)
+
+Noteret 13-09-2026 efter gennemgang af koden. Prioriteret — tag dem i rækkefølge,
+og aftal punkter der kræver nye afhængigheder.
+
+1. **Høj — fejlbesked når et billede ikke kan åbnes.** `loadImageElement()` i
+   `App.tsx` sætter kun `img.onload`, ikke `onerror`. Et HEIC-foto fra iPhone i
+   Chrome/Edge på computer (de kan ikke afkode HEIC), eller en ødelagt fil, passerer
+   `image/*`-tjekket i `Dropzone` og giver så ingenting — ingen fejl, ingen editor.
+   Tilføj `onerror` → `setErrorMessage(...)`, gerne med HEIC nævnt specifikt.
+2. **Høj — selv-host skrifttyperne.** `src/index.css` henter fire familier fra
+   `fonts.googleapis.com`, så brugerens IP-adresse sendes til Google ved hvert
+   besøg. Det strider mod "GDPR-sikkert" på startskærmen (tysk dom, LG München
+   2022). Alle fire bruges: Inter og JetBrains Mono i brugerfladen, Space Grotesk og
+   Playfair Display som skrifttypevalg til tekst på billedet i `TextTab`. Læg
+   woff2-filer i `public/fonts/`, erstat `@import` med `@font-face`, og fjern
+   `FONT_ORIGINS` fra `sw-template.js`. **Obs:** tekst tegnes på lærredet, så en valgt
+   skrifttype skal være indlæst før tegning (`document.fonts.load(...)`), ellers
+   falder både preview og eksport tilbage til en standardskrift.
+3. **Mellem — typecheck i Vercel-buildet.** `"build": "vite build"` kører ikke `tsc`,
+   så en typefejl kan nå produktion. Enten `"build": "tsc --noEmit && vite build"`
+   eller en GitHub Action, der kører `npm run lint` på hvert push.
+4. **Mellem — sikkerhedsheaders i `vercel.json`.** En Content-Security-Policy med
+   `connect-src 'self'` håndhæver teknisk, at intet forlader browseren. Suppler med
+   `X-Content-Type-Options`, `Referrer-Policy` og `Permissions-Policy`. Nemmest efter
+   punkt 2. Test service worker, `blob:`/`data:`-billeder og vandmærke-upload bagefter.
+5. **Mellem — loft på undo-historikken.** `pushNewState` har intet maksimum, så en
+   lang session vokser uden grænse. Fx maks. 100 trin (smid de ældste).
+6. **Lav — statuslinjen viser den ønskede opløsning.** Med 2× på iPhone kan eksporten
+   være mindre end tallet i footeren. Brug `getExportScale()` dér også.
+7. **Lav — automatiske tests af rene funktioner.** `displayCropToSourceCrop`,
+   `getExportScale`, `getPreviewScale` og `parseExif` er oplagte. Kræver Vitest som
+   dev-afhængighed — aftales først.
+
 ## Løst (historik)
 
 Nyeste først. Detaljer står i commit-beskederne.
 
 **13-09-2026**
-- **Nyt app-ikon: farvefelter.** De fire farvefelter fra startskærmen (amber, rød,
-  indigo, smaragd på `#16161A`) erstatter "MP" i ikon, favicon og header. PNG'erne er
-  tegnet ud fra samme geometri som `public/icon.svg`.
-- **iPhone/iPad.** Eksport begrænses til 16,7 MP på iOS (`getMaxCanvasPixels`), med
+- **`favicon.ico` som fallback** (`ee3507e`). 16/32/48 px til ældre Safari,
+  Google-søgning og bogmærker, der ikke læser SVG-faviconen. Gav før 404.
+- **Nyt app-ikon: farvefelter** (`d62aca7`). De fire farvefelter fra startskærmen
+  (amber, rød, indigo, smaragd på `#16161A`) erstatter "MP" i ikon, favicon og header.
+  PNG'erne er tegnet ud fra samme geometri som `public/icon.svg`.
+- **iPhone/iPad** (`40e1cd2`). Eksport begrænses til 16,7 MP på iOS (`getMaxCanvasPixels`), med
   besked i eksportvinduet — før gav fx et 12 MP-foto med 2× en tom fil.
   `apple-mobile-web-app-title` giver "myPhoto" under ikonet på hjemmeskærmen.
 - **Hosting på Vercel** (`b6ef364`, `e30f063`). Se afsnittet Hosting. AI Studio-appen og
