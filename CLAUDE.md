@@ -224,5 +224,6 @@ til `websitesmadsdam/Pixel`. Hvert push til `main` udruller til produktion.
 ## Google AI Studio
 
 Rester fra AI Studio (`.env.example` med en ubrugt `GEMINI_API_KEY`, `metadata.json`
-og `assets/.aistudio/`) er fjernet 13-09-2026. Projektet synkroniseres ikke længere
-tilbage til AI Studio — GitHub er sandheden.
+og `assets/.aistudio/`) er fjernet 13-09-2026. Appen i AI Studio og Simplys
+URL-viderestilling til myphoto.ai.studio er slettet samme dag. Projektet har ingen
+forbindelse til AI Studio længere — GitHub er sandheden, Vercel er hostingen.
