@@ -208,7 +208,7 @@ export function displayCropToSourceCrop(
  * Builds the CSS-compliant filter string for canvas 2D context.
  */
 export function getFilterString(adjustments: Adjustments, filter: FilterType): string {
-  let parts: string[] = [];
+  const parts: string[] = [];
 
   // Core adjustments
   if (adjustments.brightness !== 100) {

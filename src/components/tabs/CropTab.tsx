@@ -1,4 +1,3 @@
-import { Crop } from 'lucide-react';
 import { ImageState, CropAspectRatio } from '../../types';
 
 interface CropTabProps {

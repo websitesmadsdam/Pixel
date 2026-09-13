@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { AlertTriangle, Check } from 'lucide-react';
 import { ImageState } from '../../types';
 
@@ -13,10 +13,15 @@ export default function SizeTab({ imageState, onResize }: SizeTabProps) {
   const [maintainRatio, setMaintainRatio] = useState<boolean>(true);
   const [resizeError, setResizeError] = useState<string | null>(null);
 
-  useEffect(() => {
+  // Når lærredets mål ændrer sig udefra (undo, rotation, beskæring), følger
+  // felterne med. Justeres under render i stedet for i en effekt, så der ikke
+  // først tegnes en gang med de gamle værdier.
+  const [syncedDims, setSyncedDims] = useState({ w: imageState.width, h: imageState.height });
+  if (syncedDims.w !== imageState.width || syncedDims.h !== imageState.height) {
+    setSyncedDims({ w: imageState.width, h: imageState.height });
     setResizeWidth(imageState.width.toString());
     setResizeHeight(imageState.height.toString());
-  }, [imageState.width, imageState.height]);
+  }
 
   const handleWidthChange = (val: string) => {
     setResizeWidth(val);

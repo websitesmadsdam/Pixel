@@ -14,14 +14,16 @@ npm install
 npm run dev      # http://localhost:3000
 npm run build    # -> dist/
 npm run preview  # server dist/ lokalt
-npm run lint     # tsc --noEmit
+npm run lint     # tsc --noEmit (strict) && eslint .
 ```
 
 Node 20+. Der er ingen `.env` og ingen hemmeligheder — opret ikke nogen.
 
 ## Stak
 
-React 19 · TypeScript 5.8 · Vite 6 · Tailwind CSS 4 · lucide-react.
+React 19 · TypeScript 5.8 (`strict`) · Vite 6 · Tailwind CSS 4 · lucide-react.
+ESLint 10 (flad config i `eslint.config.js`) med `typescript-eslint` og
+`eslint-plugin-react-hooks` 7 — inkl. React Compiler-reglerne.
 
 Tailwind 4 konfigureres via `@tailwindcss/vite`-pluginet og `@theme`-blokken i
 `src/index.css` — der er **ingen** `tailwind.config.js`, og der skal ikke laves en.
@@ -92,6 +94,12 @@ tilføje den til `TABS` og udpege den i panelet.
 - Ny funktionalitet, der påvirker det færdige billede, skal ind i
   `drawImageWithState()` og skal virke både i preview og ved eksport.
 - Ændringer i `ImageState` skal med i undo-historikken.
+- `npm run lint` skal være grøn. Slå ikke regler fra for at få den grøn — ret koden.
+  Typiske løsninger på react-hooks-fund: afled værdien under render i stedet for
+  `setState` i en effekt (se `isCalculating` i `ExportModal`), justér state under
+  render ved ændrede props (se `syncedDims` i `SizeTab`), eller brug
+  `useEffectEvent`, når en effekt skal læse friske værdier uden at køre igen (se
+  `CropOverlay`).
 
 ## Kendte fejl (ikke rettet)
 
@@ -151,7 +159,13 @@ Alt fundet ved kodegennemgangen 12-09-2026 er rettet, og `Sidebar.tsx` er delt o
 Herfra:
 4. Flyt rendering til `OffscreenCanvas` + worker, hvis store billeder skal føles hurtige
 5. Overvej PWA (manifest + service worker) — appen er offline-egnet i forvejen
-6. Slå `"strict": true` til i `tsconfig.json`, tilføj ESLint + `eslint-plugin-react-hooks`
+6. ~~Slå `"strict": true` til i `tsconfig.json`, tilføj ESLint + `eslint-plugin-react-hooks`~~
+   **Gjort 13-09-2026.** `strict` gav 0 fejl. ESLint fandt 13 ting, alle rettet:
+   paste-handleren i `App.tsx` blev brugt før den var deklareret (nu `useCallback`
+   og flyttet ned), manglende afhængigheder i historik-effekten, `setState` i
+   effekter i `ExportModal` og `SizeTab`, og døde variabler i `exif.ts`.
+   Verificeret i browser: undo opdaterer størrelsesfelterne, eksport-estimatet
+   genberegnes ved formatskift, 1:1-beskæring giver en kvadratisk ramme.
 
 ## Rester fra Google AI Studio
 

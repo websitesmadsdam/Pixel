@@ -249,28 +249,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleUndo, handleRedo]);
 
-  // Clipboard Paste support (Ctrl+V)
-  useEffect(() => {
-    const handlePaste = (e: ClipboardEvent) => {
-      if (e.clipboardData) {
-        const items = e.clipboardData.items;
-        for (let i = 0; i < items.length; i++) {
-          if (items[i].type.startsWith('image/')) {
-            const pasteFile = items[i].getAsFile();
-            if (pasteFile) {
-              setErrorMessage(null);
-              handleImageFileSelected(pasteFile);
-              break;
-            }
-          }
-        }
-      }
-    };
-
-    window.addEventListener('paste', handlePaste);
-    return () => window.removeEventListener('paste', handlePaste);
-  }, []);
-
   // Track slider modifications and push to history on debounce
   useEffect(() => {
     // Check if anything major has changed compared to last item in history stack
@@ -292,18 +270,7 @@ export default function App() {
       }, 550);
       return () => clearTimeout(timer);
     }
-  }, [
-    imageState.adjustments, 
-    imageState.filter, 
-    imageState.texts, 
-    imageState.watermarks, 
-    imageState.backgroundRemoved, 
-    imageState.upscale2x, 
-    imageState.cornerRadius,
-    history, 
-    historyIndex, 
-    pushNewState
-  ]);
+  }, [imageState, history, historyIndex, pushNewState]);
 
   // Reset current state to the base state (0th history item)
   const handleResetToOriginal = () => {
@@ -313,34 +280,8 @@ export default function App() {
     }
   };
 
-  // Trigger file selection upload
-  const handleImageFileSelected = (imgFile: File) => {
-    setFileName(imgFile.name);
-    setOriginalSize(imgFile.size);
-
-    // Read EXIF from ArrayBuffer
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      if (e.target?.result) {
-        const parsed = parseExif(e.target.result as ArrayBuffer);
-        setExifData(parsed);
-      }
-    };
-    reader.readAsArrayBuffer(imgFile);
-
-    // Read Image data URL for display
-    const urlReader = new FileReader();
-    urlReader.onload = (e) => {
-      if (e.target?.result) {
-        loadImageElement(e.target.result as string);
-      }
-    };
-    urlReader.readAsDataURL(imgFile);
-    setFile(imgFile);
-  };
-
   // Helper to load image source element
-  const loadImageElement = (srcUrl: string) => {
+  const loadImageElement = useCallback((srcUrl: string) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
@@ -369,7 +310,55 @@ export default function App() {
       setActiveTab('size');
     };
     img.src = srcUrl;
-  };
+  }, []);
+
+  // Trigger file selection upload
+  const handleImageFileSelected = useCallback((imgFile: File) => {
+    setFileName(imgFile.name);
+    setOriginalSize(imgFile.size);
+
+    // Read EXIF from ArrayBuffer
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (e.target?.result) {
+        const parsed = parseExif(e.target.result as ArrayBuffer);
+        setExifData(parsed);
+      }
+    };
+    reader.readAsArrayBuffer(imgFile);
+
+    // Read Image data URL for display
+    const urlReader = new FileReader();
+    urlReader.onload = (e) => {
+      if (e.target?.result) {
+        loadImageElement(e.target.result as string);
+      }
+    };
+    urlReader.readAsDataURL(imgFile);
+    setFile(imgFile);
+  }, [loadImageElement]);
+
+  // Clipboard Paste support (Ctrl+V)
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (e.clipboardData) {
+        const items = e.clipboardData.items;
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type.startsWith('image/')) {
+            const pasteFile = items[i].getAsFile();
+            if (pasteFile) {
+              setErrorMessage(null);
+              handleImageFileSelected(pasteFile);
+              break;
+            }
+          }
+        }
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [handleImageFileSelected]);
 
   // Load sample mockup image with GPS / EXIF parameters for test flows
   const handleLoadSampleImage = () => {
@@ -524,8 +513,8 @@ export default function App() {
     const targetW = imageState.width;
     const targetH = imageState.height;
 
-    let displayW = targetW;
-    let displayH = targetH;
+    let displayW: number;
+    let displayH: number;
 
     const imageRatio = targetW / targetH;
     const viewportRatio = maxW / maxH;

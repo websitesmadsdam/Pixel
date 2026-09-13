@@ -28,7 +28,7 @@ export function parseExif(buffer: ArrayBuffer): ExifData {
         view.getUint32(app1Offset) === 0x45786966 && // "Exif"
         view.getUint16(app1Offset + 4) === 0x0000     // "\0\0"
       ) {
-        return parseTiffSegment(view, app1Offset + 6, segmentLength - 8);
+        return parseTiffSegment(view, app1Offset + 6);
       }
       
       offset += segmentLength + 2;
@@ -44,12 +44,12 @@ export function parseExif(buffer: ArrayBuffer): ExifData {
   return defaultResult;
 }
 
-function parseTiffSegment(view: DataView, tiffOffset: number, length: number): ExifData {
+function parseTiffSegment(view: DataView, tiffOffset: number): ExifData {
   const result: ExifData = { hasExif: false };
 
   // Check Byte Order
   const byteOrder = view.getUint16(tiffOffset);
-  let isLittleEndian = true;
+  let isLittleEndian: boolean;
   if (byteOrder === 0x4949) {
     isLittleEndian = true; // Intel
   } else if (byteOrder === 0x4D4D) {

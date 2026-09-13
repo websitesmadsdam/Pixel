@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { CropArea } from '../types';
+import React, { useState, useEffect, useEffectEvent, useRef } from 'react';
+import { CropArea, CropAspectRatio } from '../types';
 
 interface CropOverlayProps {
   containerWidth: number;
   containerHeight: number;
   crop: CropArea;
   onChange: (crop: CropArea) => void;
-  aspectRatio: 'free' | '1:1' | '16:9' | '3:4';
+  aspectRatio: CropAspectRatio;
 }
 
 export default function CropOverlay({
@@ -21,8 +21,9 @@ export default function CropOverlay({
   const [startPos, setStartPos] = useState({ x: 0, y: 0 });
   const [startCrop, setStartCrop] = useState<CropArea>({ x: 0, y: 0, width: 100, height: 100 });
 
-  // Update crop aspect ratio when it changes from props
-  useEffect(() => {
+  // Tilpas rammen, når sideforholdet eller lærredet ændrer sig. Som effect event
+  // læser den altid den aktuelle ramme uden at køre igen, hver gang rammen flyttes.
+  const fitCropToAspectRatio = useEffectEvent(() => {
     if (aspectRatio === 'free') return;
     
     let targetRatio = 1;
@@ -50,6 +51,10 @@ export default function CropOverlay({
       width: Math.round(newWidth),
       height: Math.round(newHeight),
     });
+  });
+
+  useEffect(() => {
+    fitCropToAspectRatio();
   }, [aspectRatio, containerWidth, containerHeight]);
 
   const handleMouseDown = (e: React.MouseEvent, type: string) => {

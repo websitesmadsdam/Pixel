@@ -20,9 +20,13 @@ export default function ExportModal({
 }: ExportModalProps) {
   const [format, setFormat] = useState<'webp' | 'png' | 'jpeg'>('webp');
   const [quality, setQuality] = useState<number>(80); // 0 - 100
-  const [exportSize, setExportSize] = useState<number | null>(null);
-  const [isCalculating, setIsCalculating] = useState<boolean>(false);
-  const [fileName, setFileName] = useState<string>('');
+  // Standardfilnavn uden den oprindelige filendelse. Modalen monteres forfra
+  // hver gang den åbnes, så en initialiser er nok.
+  const [fileName, setFileName] = useState<string>(() => {
+    const dotIndex = originalName.lastIndexOf('.');
+    const baseName = dotIndex !== -1 ? originalName.substring(0, dotIndex) : originalName;
+    return `${baseName}_myphoto`;
+  });
 
   // Eksport-lærredet lever uden for DOM'en og tegnes i den fulde opløsning
   // (isExporting = true), så bl.a. 2x opskalering rent faktisk kommer med.
@@ -45,17 +49,27 @@ export default function ExportModal({
     return exportCanvasRef.current;
   }, [originalImage, imageState]);
 
-  // Set default filename without original extension
-  useEffect(() => {
-    const dotIndex = originalName.lastIndexOf('.');
-    const baseName = dotIndex !== -1 ? originalName.substring(0, dotIndex) : originalName;
-    setFileName(`${baseName}_myphoto`);
-  }, [originalName]);
+  // Estimatet husker, hvilke indstillinger det blev beregnet ud fra. Så kan
+  // "Beregner..." afledes under render i stedet for at blive sat i effekten.
+  const [estimate, setEstimate] = useState<{
+    image: HTMLImageElement;
+    state: ImageState;
+    mimeType: string;
+    quality: number | undefined;
+    size: number | null;
+  } | null>(null);
+
+  const isCalculating =
+    estimate === null ||
+    estimate.image !== originalImage ||
+    estimate.state !== imageState ||
+    estimate.mimeType !== mimeType ||
+    estimate.quality !== qualityParam;
+  const exportSize = isCalculating ? null : estimate.size;
 
   // Beregn den faktiske filstørrelse ud fra eksport-lærredet
   useEffect(() => {
     let cancelled = false;
-    setIsCalculating(true);
 
     // Kort forsinkelse, så sliderbevægelser ikke får UI'et til at hakke
     const timer = setTimeout(async () => {
@@ -65,8 +79,13 @@ export default function ExportModal({
       canvas.toBlob(
         (blob) => {
           if (cancelled) return;
-          if (blob) setExportSize(blob.size);
-          setIsCalculating(false);
+          setEstimate({
+            image: originalImage,
+            state: imageState,
+            mimeType,
+            quality: qualityParam,
+            size: blob ? blob.size : null,
+          });
         },
         mimeType,
         qualityParam,
@@ -77,7 +96,7 @@ export default function ExportModal({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [mimeType, qualityParam, renderExportCanvas]);
+  }, [originalImage, imageState, mimeType, qualityParam, renderExportCanvas]);
 
   const handleDownload = async () => {
     const canvas = await renderExportCanvas();
