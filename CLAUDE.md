@@ -156,7 +156,11 @@ Fundet ved kodegennemgang 12-09-2026, verificér i browseren før du retter.
    `@imgly/background-removal`) kan køre lokalt. Begge henter dog modelfiler fra et
    CDN ved første brug — det bryder ikke privatlivsløftet (ingen billeddata
    sendes), men det bryder husreglen om ingen CDN-kald og lægger et par MB til.
-   Kræver en beslutning, ikke bare en implementering.
+   **Beslutning 13-09-2026: vi beholder den farvebaserede funktion indtil videre.**
+   Til senere: `@imgly/background-removal` er AGPL-3.0 (ville kræve, at hele appen
+   blev AGPL) og 40–80 MB. MediaPipe (`@mediapipe/tasks-vision`, Apache-2.0) er
+   lille, men primært til personer. transformers.js er Apache-2.0, men RMBG-modellerne
+   er ikke-kommercielle. Modelfiler bør selv-hostes frem for at hentes fra et CDN.
 5. ~~**"Opskalér 2×" er ikke opskalering.**~~ **Teksten rettet 12-09-2026** —
    funktionen er uændret. Hed "Super-opskalering" og påstod "bicubisk
    interpolering"; hedder nu "Dobbelt opløsning (2×)" og siger, at billedet bliver
