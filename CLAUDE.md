@@ -56,6 +56,7 @@ sliderændringer.
 public/
 ├── manifest.webmanifest # PWA-manifest (navn, farver, ikoner)
 ├── icon.svg             # favicon + skalerbart app-ikon
+├── favicon.ico          # 16/32/48 px fallback til browsere og tjenester uden SVG-favicon
 └── icons/               # 192/512 px, maskable 512 px, apple-touch-icon 180 px
 vite.config.ts           # indeholder serviceWorker()-pluginet, der bygger dist/sw.js
 src/
