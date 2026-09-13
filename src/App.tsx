@@ -8,6 +8,7 @@ import { ImageState, ExifData, ToolTab, CropArea, CropAspectRatio } from './type
 import { parseExif } from './utils/exif';
 import {
   drawImageWithState,
+  getPreviewScale,
   preloadWatermarks,
   displayCropToSourceCrop,
 } from './utils/filters';
@@ -360,6 +361,24 @@ export default function App() {
     return () => window.removeEventListener('paste', handlePaste);
   }, [handleImageFileSelected]);
 
+  // "Åbn med myPhoto": startes den installerede app med en billedfil fra
+  // styresystemet (file_handlers i manifestet), leveres filen via launchQueue.
+  // Hver fil åbner sit eget vindue (launch_handler: navigate-new), så en
+  // igangværende redigering aldrig bliver overskrevet.
+  useEffect(() => {
+    window.launchQueue?.setConsumer(async (params) => {
+      const handle = params.files[0];
+      if (!handle) return;
+      const launchedFile = await handle.getFile();
+      if (!launchedFile.type.startsWith('image/')) {
+        setErrorMessage('Filen er ikke et billede, som myPhoto kan åbne.');
+        return;
+      }
+      setErrorMessage(null);
+      handleImageFileSelected(launchedFile);
+    });
+  }, [handleImageFileSelected]);
+
   // Load sample mockup image with GPS / EXIF parameters for test flows
   const handleLoadSampleImage = () => {
     // We render a beautiful high-tech illustration using canvas, convert to blob
@@ -466,7 +485,9 @@ export default function App() {
   // Run the canvas rendering pipeline
   const runCanvasRender = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !originalImage) return;
+    // Uden målt visningsflade kendes preview-skalaen ikke — vent hellere end at
+    // tegne ét gennemløb i fuld opløsning
+    if (!canvas || !originalImage || viewportDims.width === 0) return;
 
     // Build standard drawing options, support holding to view original
     const renderState = showOriginal
@@ -477,8 +498,16 @@ export default function App() {
         }
       : imageState;
 
-    drawImageWithState(canvas, originalImage, renderState, false);
-  }, [originalImage, imageState, showOriginal]);
+    // Preview tegnes kun i skærmens opløsning. Eksporten tegner selv i fuld
+    // opløsning på sit eget lærred (ExportModal).
+    const scale = getPreviewScale(
+      renderState,
+      viewportDims.width,
+      viewportDims.height,
+      window.devicePixelRatio || 1,
+    );
+    drawImageWithState(canvas, originalImage, renderState, scale);
+  }, [originalImage, imageState, showOriginal, viewportDims.width, viewportDims.height]);
 
   // Run render whenever drawing states or showOriginal flags change
   useEffect(() => {

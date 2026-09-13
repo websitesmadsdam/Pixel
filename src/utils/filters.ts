@@ -206,8 +206,10 @@ export function displayCropToSourceCrop(
 
 /**
  * Builds the CSS-compliant filter string for canvas 2D context.
+ * `scale` er lærredets pixels pr. billedpixel — sløring er i pixels og skal
+ * skalere med, ellers ser den kraftigere ud i det nedskalerede preview.
  */
-export function getFilterString(adjustments: Adjustments, filter: FilterType): string {
+export function getFilterString(adjustments: Adjustments, filter: FilterType, scale: number = 1): string {
   const parts: string[] = [];
 
   // Core adjustments
@@ -221,7 +223,7 @@ export function getFilterString(adjustments: Adjustments, filter: FilterType): s
     parts.push(`saturate(${adjustments.saturation}%)`);
   }
   if (adjustments.blur > 0) {
-    parts.push(`blur(${adjustments.blur * 0.15}px)`);
+    parts.push(`blur(${adjustments.blur * 0.15 * scale}px)`);
   }
 
   // Built-in presets
@@ -243,8 +245,35 @@ export function getFilterString(adjustments: Adjustments, filter: FilterType): s
   return parts.join(' ') || 'none';
 }
 
+/** Eksportens skala: fuld opløsning, dobbelt ved "Dobbelt opløsning (2×)". */
+export function getExportScale(state: { upscale2x: boolean }): number {
+  return state.upscale2x ? 2 : 1;
+}
+
+/**
+ * Preview'ets skala: så få pixels som skærmen kan vise, aldrig mere end fuld
+ * opløsning. Et 24 MP-billede med skarphed og baggrundsfjernelse tager ~1,7 s at
+ * tegne i fuld opløsning, men ~0,1 s i 1600 px (målt 13-09-2026).
+ */
+export function getPreviewScale(
+  state: { width: number; height: number },
+  displayWidth: number,
+  displayHeight: number,
+  devicePixelRatio: number,
+): number {
+  const fit = Math.max(
+    (displayWidth * devicePixelRatio) / state.width,
+    (displayHeight * devicePixelRatio) / state.height,
+  );
+  return Math.min(1, fit);
+}
+
 /**
  * Renders an editing state onto a target canvas.
+ *
+ * `scale` er lærredets pixels pr. pixel i `state.width`/`state.height`. Alt, der
+ * måles i pixels (tekststørrelse, sløring), ganges med den, så preview og eksport
+ * ser ens ud. Brug `getExportScale()` ved eksport og `getPreviewScale()` i preview.
  */
 export function drawImageWithState(
   canvas: HTMLCanvasElement,
@@ -264,21 +293,14 @@ export function drawImageWithState(
     height: number;
     cornerRadius: number;
   },
-  // If true, renders at the full requested resolution. If false, fits in the layout
-  isExporting: boolean = false
+  scale: number = 1,
 ) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
   // 1. Determine base canvas dimensions
-  let renderWidth = state.width;
-  let renderHeight = state.height;
-
-  // If upscaling by 2x is active and we are exporting
-  if (state.upscale2x && isExporting) {
-    renderWidth *= 2;
-    renderHeight *= 2;
-  }
+  const renderWidth = Math.max(1, Math.round(state.width * scale));
+  const renderHeight = Math.max(1, Math.round(state.height * scale));
 
   canvas.width = renderWidth;
   canvas.height = renderHeight;
@@ -307,7 +329,7 @@ export function drawImageWithState(
   const drawHeight = isRotated90or270 ? renderWidth : renderHeight;
 
   // 3. Set CSS filters
-  ctx.filter = getFilterString(state.adjustments, state.filter);
+  ctx.filter = getFilterString(state.adjustments, state.filter, scale);
 
   // 4. Draw image (including cropping coordinates if active)
   if (state.crop) {
@@ -417,12 +439,8 @@ export function drawImageWithState(
     ctx.save();
     ctx.globalAlpha = text.opacity;
     
-    // Calculate font size proportional to original height if exporting, or keep scale
-    const scaleFactor = isExporting ? (state.upscale2x ? 2 : 1) : 1;
-    // But text.fontSize is set relative to viewport. Let's make sure it scales with canvas resolution!
-    // We can save size as a percentage of height or absolute. Let's say text.fontSize is absolute at viewport, 
-    // and we scale it proportionally to canvas size relative to some base, say 600px.
-    const proportionalFontSize = text.fontSize * scaleFactor;
+    // text.fontSize er i billedpixels; lærredet kan være skaleret op eller ned
+    const proportionalFontSize = text.fontSize * scale;
 
     ctx.font = `bold ${proportionalFontSize}px ${text.fontFamily || 'sans-serif'}`;
     ctx.fillStyle = text.color;

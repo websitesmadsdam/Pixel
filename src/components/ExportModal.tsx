@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Download, X, FileImage, ShieldCheck } from 'lucide-react';
 import { ImageState } from '../types';
-import { drawImageWithState, preloadWatermarks } from '../utils/filters';
+import { drawImageWithState, getExportScale, preloadWatermarks } from '../utils/filters';
 
 interface ExportModalProps {
   originalImage: HTMLImageElement;
@@ -39,13 +39,22 @@ export default function ExportModal({
     format === 'jpeg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png';
   const qualityParam = format === 'png' ? undefined : quality / 100;
 
-  /** Tegner eksport-lærredet forfra og returnerer det. */
+  // Hvilket billede og hvilken tilstand eksport-lærredet sidst blev tegnet ud fra.
+  // Skift af format eller kvalitet kræver kun en ny toBlob, ikke en ny tegning —
+  // og en tegning i fuld opløsning kan tage over et sekund for store billeder.
+  const renderedForRef = useRef<{ image: HTMLImageElement; state: ImageState } | null>(null);
+
+  /** Tegner eksport-lærredet, hvis billedet eller tilstanden er ændret, og returnerer det. */
   const renderExportCanvas = useCallback(async (): Promise<HTMLCanvasElement> => {
     if (!exportCanvasRef.current) {
       exportCanvasRef.current = document.createElement('canvas');
     }
-    await preloadWatermarks(imageState.watermarks.map((wm) => wm.imageUrl));
-    drawImageWithState(exportCanvasRef.current, originalImage, imageState, true);
+    const last = renderedForRef.current;
+    if (last?.image !== originalImage || last?.state !== imageState) {
+      await preloadWatermarks(imageState.watermarks.map((wm) => wm.imageUrl));
+      drawImageWithState(exportCanvasRef.current, originalImage, imageState, getExportScale(imageState));
+      renderedForRef.current = { image: originalImage, state: imageState };
+    }
     return exportCanvasRef.current;
   }, [originalImage, imageState]);
 

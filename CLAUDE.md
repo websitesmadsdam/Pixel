@@ -176,13 +176,26 @@ Fundet ved kodegennemgang 12-09-2026, verificér i browseren før du retter.
 
 Alt fundet ved kodegennemgangen 12-09-2026 er rettet, og `Sidebar.tsx` er delt op.
 Herfra:
-4. Flyt rendering til `OffscreenCanvas` + worker, hvis store billeder skal føles hurtige
+4. ~~Flyt rendering til `OffscreenCanvas` + worker, hvis store billeder skal føles hurtige~~
+   **Løst anderledes 13-09-2026.** Målt i Chrome: preview'et gentegnede hele billedet
+   i fuld opløsning ved hver ændring — 24 MP med skarphed + baggrund + filter tog
+   1703 ms pr. slidertræk (skarphed alene 522 ms). En worker ville kun flytte
+   ventetiden væk fra UI-tråden. I stedet tager `drawImageWithState` nu en `scale`:
+   preview tegnes i skærmens opløsning (`getPreviewScale`, ~113 ms i samme
+   scenarie), eksport i fuld (`getExportScale`). Tekststørrelse og sløring skalerer
+   med. `ExportModal` gentegner ikke længere ved skift af format/kvalitet.
+   **Kendt afvigelse:** skarphed virker pr. pixel, så den ser lidt kraftigere ud i
+   det nedskalerede preview end i eksporten. Worker er stadig en mulighed, hvis
+   eksport af meget store billeder skal holde UI'et flydende.
 5. ~~Overvej PWA (manifest + service worker)~~ **Gjort 13-09-2026.** Manifest,
    ikoner og håndskrevet service worker. Verificeret med `npm run preview`: service
    workeren aktiveres og precacher 9 filer ved første besøg; med serveren slukket
    indlæses appen stadig med skrifttyper, og prøvebilledet kan åbnes og tegnes.
-   **Mulig udvidelse:** `file_handlers` + `launchQueue` i manifestet, så en
-   installeret app kan åbne billeder direkte fra styresystemet ("Åbn med myPhoto").
+   **Udvidet 13-09-2026:** `file_handlers` i manifestet + `launchQueue`-consumer i
+   `App.tsx`, så en installeret app kan åbne billeder fra styresystemet ("Åbn med
+   myPhoto"). Hver fil får sit eget vindue (`launch_handler: navigate-new`), så en
+   igangværende redigering ikke overskrives. Kun Chromium på desktop; kan ikke
+   testes i en almindelig fane, kun i den installerede app.
 6. ~~Slå `"strict": true` til i `tsconfig.json`, tilføj ESLint + `eslint-plugin-react-hooks`~~
    **Gjort 13-09-2026.** `strict` gav 0 fejl. ESLint fandt 13 ting, alle rettet:
    paste-handleren i `App.tsx` blev brugt før den var deklareret (nu `useCallback`
@@ -191,10 +204,8 @@ Herfra:
    Verificeret i browser: undo opdaterer størrelsesfelterne, eksport-estimatet
    genberegnes ved formatskift, 1:1-beskæring giver en kvadratisk ramme.
 
-## Rester fra Google AI Studio
+## Google AI Studio
 
-`.env.example` (beder om en `GEMINI_API_KEY` der aldrig bruges) og `metadata.json`
-(erklærer `MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API`) er begge uden funktion i koden.
-Behold kun `metadata.json`, hvis projektet stadig skal kunne synkroniseres tilbage
-til AI Studio. Gør det ikke: AI Studio og Claude Code, der begge pusher til `main`,
-giver konflikter. GitHub er sandheden.
+Rester fra AI Studio (`.env.example` med en ubrugt `GEMINI_API_KEY`, `metadata.json`
+og `assets/.aistudio/`) er fjernet 13-09-2026. Projektet synkroniseres ikke længere
+tilbage til AI Studio — GitHub er sandheden.

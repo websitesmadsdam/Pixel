@@ -1,6 +1,0 @@
-{
-  "name": "myPhoto",
-  "description": "Et komplet, gratis browserbaseret billedbehandlingsværktøj. Beskær, rotér, justér farver, tilføj tekst, fjern baggrund, komprimér, opskalér og fjern metadata lokalt i din browser.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
